@@ -1,0 +1,48 @@
+entry = _{ SOI ~ lines ~ EOI }
+// Vec<LineNode>
+lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
+block =  { "{" ~ lines? ~ "}" }
+line  = _{ (assignment_line | expr_line | comment) ~ comment? }
+
+expr_line =  { expr }
+expr      =  { atom ~ (bin_op ~ atom)* }
+bin_op    = _{ add | subtract | multiply | divide | modulo | power | range }
+atom      = _{ unary_minus? ~ primary }
+primary   = _{ literal | "(" ~ expr ~ ")" }
+
+literal = _{ if_statement | for_statement | boolean | number | variable }
+
+if_statement = { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
+
+for_statement = { for ~ variable ~ in ~ expr ~ block }
+
+boolean = _{ true_ | false_ }
+
+number          =  { integer ~ unit_annotation? }
+integer         = @{ ASCII_DIGIT+ }
+unit_annotation =  { "[" ~ variable ~ "]" }
+
+variable = @{ (ASCII_ALPHA | "_")+ }
+
+assignment_line = { variable ~ "=" ~ expr }
+
+comment = _{ "//" ~ (!NEWLINE ~ ANY)* }
+
+// TOKENS
+
+add         =  { "+" }
+subtract    =  { "-" }
+unary_minus =  { "-" }
+multiply    =  { "*" }
+divide      =  { "/" }
+power       =  { "^" }
+modulo      =  { "%" }
+range       =  { ".." }
+true_       =  { "true" }
+false_      =  { "false" }
+if          = _{ "if" }
+else        = _{ "else" }
+for         = _{ "for" }
+in          = _{ "in" }
+
+WHITESPACE = _{ " " }
