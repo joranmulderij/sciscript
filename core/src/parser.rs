@@ -7,13 +7,13 @@ use crate::ast::{ExprNode, LineNode, Op};
 #[grammar = "grammar.pest"]
 struct MyParser;
 
-pub fn parse(input: &str) -> Result<Vec<LineNode<String>>, pest::error::Error<Rule>> {
+pub fn parse(input: &str) -> Result<Vec<LineNode<String, String>>, pest::error::Error<Rule>> {
     let pairs = MyParser::parse(Rule::entry, input)?;
     Ok(build_line_ast(pairs))
 }
 
-fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineNode<String>> {
-    let mut lines: Vec<LineNode<String>> = Vec::new();
+fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineNode<String, String>> {
+    let mut lines: Vec<LineNode<String, String>> = Vec::new();
     for pair in pairs {
         match pair.as_rule() {
             Rule::expr_line => {
@@ -26,6 +26,11 @@ fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineNode<String>> {
                 let var = inner.next().unwrap().as_str().to_string();
                 let expr = inner.next().unwrap();
                 let node = LineNode::Assign(var, build_expr_ast(expr.into_inner()));
+                lines.push(node);
+            }
+            Rule::unitdef_line => {
+                let unit = pair.into_inner().next().unwrap().as_str().to_string();
+                let node = LineNode::UnitDef(unit);
                 lines.push(node);
             }
             Rule::EOI => {}
@@ -48,11 +53,12 @@ lazy_static::lazy_static! {
             .op(Op::infix(Rule::range, Left))
             .op(Op::infix(Rule::add, Left) | Op::infix(Rule::subtract, Left))
             .op(Op::infix(Rule::multiply, Left) | Op::infix(Rule::divide, Left) | Op::infix(Rule::modulo, Left))
+            .op(Op::infix(Rule::power, Left))
             .op(Op::prefix(Rule::unary_minus))
     };
 }
 
-pub fn build_expr_ast(pairs: Pairs<Rule>) -> ExprNode<String> {
+pub fn build_expr_ast(pairs: Pairs<Rule>) -> ExprNode<String, String> {
     PRATT_PARSER
         .map_primary(|primary| match primary.as_rule() {
             Rule::expr => build_expr_ast(primary.into_inner()),
@@ -62,17 +68,13 @@ pub fn build_expr_ast(pairs: Pairs<Rule>) -> ExprNode<String> {
             Rule::number => {
                 let mut inner = primary.into_inner();
                 let number = inner.next().unwrap().as_str();
-                let unit = match inner.next() {
-                    Some(unit) => unit.as_str(),
-                    None => "",
-                };
-                ExprNode::Number(number.parse::<i32>().unwrap(), unit.to_string())
+                ExprNode::Number(number.parse::<i64>().unwrap())
             }
             Rule::if_statement => {
                 let inner = primary.into_inner();
-                let mut conditions: Vec<ExprNode<String>> = Vec::new();
-                let mut blocks: Vec<Vec<LineNode<String>>> = Vec::new();
-                let mut else_block: Option<Vec<LineNode<String>>> = None;
+                let mut conditions: Vec<ExprNode<String, String>> = Vec::new();
+                let mut blocks: Vec<Vec<LineNode<String, String>>> = Vec::new();
+                let mut else_block: Option<Vec<LineNode<String, String>>> = None;
                 for item in inner {
                     match item.as_rule() {
                         Rule::expr => conditions.push(build_expr_ast(item.into_inner())),
@@ -112,6 +114,7 @@ pub fn build_expr_ast(pairs: Pairs<Rule>) -> ExprNode<String> {
                 Rule::divide => Op::Divide,
                 Rule::modulo => Op::Modulo,
                 Rule::range => Op::Range,
+                Rule::power => Op::Power,
                 rule => unreachable!("Expr::parse expected infix operation, found {:?}", rule),
             };
             ExprNode::BinOp {

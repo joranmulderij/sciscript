@@ -1,79 +1,90 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    ops::{Add, Mul, Sub},
+};
 
-macro_rules! collection {
-    // map-like
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        core::convert::From::from([$(($k, $v),)*])
-    }};
-    // set-like
-    ($($v:expr),* $(,)?) => {{
-        core::convert::From::from([$($v,)*])
-    }};
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct UnitSet {
+    units: HashMap<Unit, i64>,
 }
 
-#[derive(Debug)]
-pub struct Unit {
-    name: &'static str,
-    dimensions: DimensionProfile,
+impl Mul<i64> for UnitSet {
+    type Output = Self;
+
+    fn mul(self, other: i64) -> Self {
+        let mut units = self.units;
+        for (_, power) in units.iter_mut() {
+            *power *= other;
+        }
+        Self { units }
+    }
 }
 
-impl Unit {
-    const METER: Unit = Unit {
-        name: "meter",
-        dimensions: DimensionProfile::LENGTH,
-    };
-    const KILOGRAM: Unit = Unit {
-        name: "kilogram",
-        dimensions: DimensionProfile::MASS,
-    };
-    const SECOND: Unit = Unit {
-        name: "second",
-        dimensions: DimensionProfile::TIME,
-    };
-    const NEWTON: Unit = Unit {
-        name: "newton",
-        dimensions: DimensionProfile::FORCE,
-    };
+impl Add for UnitSet {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        let mut units = self.units;
+        for (unit, power) in other.units {
+            let new_power = units.entry(unit.clone()).or_insert(0);
+            *new_power += power;
+            if *new_power == 0 {
+                units.remove(&unit);
+            }
+        }
+        Self { units }
+    }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct DimensionProfile {
-    mass: i8,
-    length: i8,
-    time: i8,
-    current: i8,
-    temperature: i8,
-    amount: i8,
-    luminosity: i8,
+impl Sub for UnitSet {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        let mut units = self.units;
+        for (unit, power) in other.units {
+            let new_power = units.entry(unit.clone()).or_insert(0);
+            *new_power -= power;
+            if *new_power == 0 {
+                units.remove(&unit);
+            }
+        }
+        Self { units }
+    }
 }
 
-impl DimensionProfile {
-    const fn new(
-        mass: i8,
-        length: i8,
-        time: i8,
-        current: i8,
-        temperature: i8,
-        amount: i8,
-        luminosity: i8,
-    ) -> Self {
+impl UnitSet {
+    pub fn empty() -> Self {
         Self {
-            mass,
-            length,
-            time,
-            current,
-            temperature,
-            amount,
-            luminosity,
+            units: HashMap::new(),
         }
     }
-    const LENGTH: DimensionProfile = DimensionProfile::new(0, 1, 0, 0, 0, 0, 0);
-    const MASS: DimensionProfile = DimensionProfile::new(1, 0, 0, 0, 0, 0, 0);
-    const TIME: DimensionProfile = DimensionProfile::new(0, 0, 1, 0, 0, 0, 0);
-    const CURRENT: DimensionProfile = DimensionProfile::new(0, 0, 0, 1, 0, 0, 0);
-    const TEMPERATURE: DimensionProfile = DimensionProfile::new(0, 0, 0, 0, 1, 0, 0);
-    const AMOUNT: DimensionProfile = DimensionProfile::new(0, 0, 0, 0, 0, 1, 0);
-    const LUMINOSITY: DimensionProfile = DimensionProfile::new(0, 0, 0, 0, 0, 0, 1);
 
-    const FORCE: DimensionProfile = DimensionProfile::new(1, 1, -2, 0, 0, 0, 0);
+    pub fn single_unit(unit: Unit) -> Self {
+        let mut units = HashMap::new();
+        units.insert(unit, 1);
+        Self { units }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.units.is_empty()
+    }
+}
+
+impl ToString for UnitSet {
+    fn to_string(&self) -> String {
+        let mut parts = Vec::new();
+        for (unit, power) in self.units.iter() {
+            if *power == 1 {
+                parts.push(unit.name.to_string());
+            } else {
+                parts.push(format!("{}{}", unit.name, power));
+            }
+        }
+        parts.join(" ")
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+pub struct Unit {
+    pub name: String,
 }

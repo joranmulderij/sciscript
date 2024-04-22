@@ -1,7 +1,13 @@
 
 
-a = 2
+unit m
+
+V = m^3
+
+a = 2 * V
+
+a = m^2 * m^1
+
 
 c = 3
 
-c = for i in 2..10 {}

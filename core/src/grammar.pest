@@ -2,7 +2,7 @@ entry = _{ SOI ~ lines ~ EOI }
 // Vec<LineNode>
 lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
 block =  { "{" ~ lines? ~ "}" }
-line  = _{ (assignment_line | expr_line | comment) ~ comment? }
+line  = _{ (unitdef_line | assignment_line | expr_line | comment) ~ comment? }
 
 expr_line =  { expr }
 expr      =  { atom ~ (bin_op ~ atom)* }
@@ -18,13 +18,14 @@ for_statement = { for ~ variable ~ in ~ expr ~ block }
 
 boolean = _{ true_ | false_ }
 
-number          =  { integer ~ unit_annotation? }
-integer         = @{ ASCII_DIGIT+ }
-unit_annotation =  { "[" ~ variable ~ "]" }
+number  =  { integer }
+integer = @{ ASCII_DIGIT+ }
 
 variable = @{ (ASCII_ALPHA | "_")+ }
 
 assignment_line = { variable ~ "=" ~ expr }
+
+unitdef_line = { unit ~ variable }
 
 comment = _{ "//" ~ (!NEWLINE ~ ANY)* }
 
@@ -44,5 +45,6 @@ if          = _{ "if" }
 else        = _{ "else" }
 for         = _{ "for" }
 in          = _{ "in" }
+unit        = _{ "unit" }
 
 WHITESPACE = _{ " " }

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::units::UnitSet;
+
 pub struct TypeContext {
     scopes: Vec<Scope>,
     counter: u32,
@@ -53,10 +55,26 @@ impl Scope {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Type {
-    Number(String), // Unit
+    Number(UnitSet, Option<NumberConstant>),
     Range,
     Bool,
     Void,
+}
+
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Number(l0, _), Self::Number(r0, _)) => l0 == r0,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+impl Eq for Type {}
+
+#[derive(Debug, Clone)]
+pub enum NumberConstant {
+    Integer(i64),
+    Float(f64),
 }
