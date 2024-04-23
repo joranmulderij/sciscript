@@ -1,13 +1,13 @@
 
 
-unit m
+print sin {
+    let a = 1
+    let b = 2
+    a+b
+}
 
-V = m^3
-
-a = 2 * V
-
-a = m^2 * m^1
-
-
-c = 3
-
+//out = for i in 1..100 {
+//    c = a + b
+//    a = b
+//    b = c
+//}

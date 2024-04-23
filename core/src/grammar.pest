@@ -4,26 +4,28 @@ lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
 block =  { "{" ~ lines? ~ "}" }
 line  = _{ (unitdef_line | assignment_line | expr_line | comment) ~ comment? }
 
-expr_line =  { expr }
-expr      =  { atom ~ (bin_op ~ atom)* }
-bin_op    = _{ add | subtract | multiply | divide | modulo | power | range }
-atom      = _{ unary_minus? ~ primary }
-primary   = _{ literal | "(" ~ expr ~ ")" }
+expr_line     =  { expr }
+expr          =  { for_statement | if_statement | expr_ops+ }
+if_statement  =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
+for_statement =  { for ~ variable ~ in ~ expr ~ block }
+expr_ops      =  { atom ~ (bin_op ~ atom)* }
+bin_op        = _{ add | subtract | multiply | divide | modulo | power | range }
+atom          = _{ unary_minus? ~ primary }
+primary       = _{ literal | "(" ~ expr ~ ")" }
 
-literal = _{ if_statement | for_statement | boolean | number | variable }
-
-if_statement = { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
-
-for_statement = { for ~ variable ~ in ~ expr ~ block }
+literal = _{ boolean | number | variable | block }
 
 boolean = _{ true_ | false_ }
 
 number  =  { integer }
 integer = @{ ASCII_DIGIT+ }
 
-variable = @{ (ASCII_ALPHA | "_")+ }
+variable = @{ !"in" ~ (ASCII_ALPHA | "_")+ }
 
-assignment_line = { variable ~ "=" ~ expr }
+assignment_line        = _{ const_assignment_line | let_assignment_line | normal_assignment_line }
+normal_assignment_line =  { variable ~ "=" ~ expr }
+let_assignment_line    =  { let ~ variable ~ "=" ~ expr }
+const_assignment_line  =  { const ~ variable ~ "=" ~ expr }
 
 unitdef_line = { unit ~ variable }
 
@@ -46,5 +48,7 @@ else        = _{ "else" }
 for         = _{ "for" }
 in          = _{ "in" }
 unit        = _{ "unit" }
+const       = _{ "const" }
+let         = _{ "let" }
 
 WHITESPACE = _{ " " }

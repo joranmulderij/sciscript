@@ -1,13 +1,14 @@
 mod ast;
 mod parser;
 mod python_codegen;
+mod std_lib;
 mod type_checking;
 mod types;
 mod units;
 
 use std::io;
 
-use crate::{parser::parse, type_checking::check_types};
+use crate::{parser::parse, type_checking::check_types, types::TypeContext};
 
 fn main() -> io::Result<()> {
     let file = std::fs::read_to_string("input.sci")?;
@@ -19,7 +20,9 @@ fn main() -> io::Result<()> {
         }
     };
     println!("{:?}", ast);
-    let (_, ast2) = match check_types(ast) {
+    let (imports, std_lib) = std_lib::get_std_lib();
+    let mut type_context = TypeContext::new(std_lib);
+    let (_, ast2) = match check_types(ast, &mut type_context) {
         Ok(ast) => ast,
         Err(e) => {
             eprintln!("{}", e);
@@ -27,18 +30,16 @@ fn main() -> io::Result<()> {
         }
     };
     println!("{:?}", ast2);
-    // let mut python_code = String::new();
-    // match ast {
-    //     Ok(ast) => {
-    //         for line in ast {
-    //             python_code.push_str(&line.to_python());
-    //             python_code.push_str("\n");
-    //         }
-    //     }
-    //     Err(e) => {
-    //         eprintln!("{}", e);
-    //     }
-    // }
-    // std::fs::write("output.py", python_code)?;
+
+    let python_code = crate::python_codegen::generate_python_code(ast2);
+    let python_code = format!(
+        "
+{}
+{}
+    ",
+        imports, python_code
+    );
+    std::fs::write("output.py", python_code)?;
+
     Ok(())
 }

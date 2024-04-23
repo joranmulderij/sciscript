@@ -2,52 +2,66 @@
 //     fn to_python(&self) -> String;
 // }
 
+use crate::types::Type;
+
 #[derive(Debug)]
-pub enum LineNode<VarT, UnitT> {
-    Expr(ExprNode<VarT, UnitT>),
-    Assign(VarT, ExprNode<VarT, UnitT>),
-    UnitDef(UnitT),
+pub enum LineUnchecked {
+    Expr(ExprUnchecked),
+    Assign(String, ExprUnchecked, AssignmentType),
+    UnitDef(String),
 }
 
-// impl AstNode for LineNode<u32> {
-//     fn to_python(&self) -> String {
-//         match self {
-//             LineNode::Expr(expr) => expr.to_python(),
-//             LineNode::Assign(var, expr) => format!("{} = {}", var, expr.to_python()),
-//         }
-//     }
-// }
+#[derive(Debug)]
+pub enum Line {
+    Expr(Expr),
+    Assign(String, Expr, AssignmentType),
+}
 
 #[derive(Debug)]
-pub enum ExprNode<VarT, UnitT> {
+pub enum ExprUnchecked {
     Number(i64),
-    UnaryMinus(Box<ExprNode<VarT, UnitT>>),
+    UnaryMinus(Box<ExprUnchecked>),
     BinOp {
-        lhs: Box<ExprNode<VarT, UnitT>>,
+        lhs: Box<ExprUnchecked>,
         op: Op,
-        rhs: Box<ExprNode<VarT, UnitT>>,
+        rhs: Box<ExprUnchecked>,
     },
-    Variable(VarT),
+    // FunctionCall(Box<ExprUnchecked>, Vec<ExprUnchecked>),
+    Variable(String),
+    Sequencial(Box<ExprUnchecked>, Box<ExprUnchecked>),
     If(
-        Vec<ExprNode<VarT, UnitT>>,
-        Vec<Vec<LineNode<VarT, UnitT>>>,
-        Option<Vec<LineNode<VarT, UnitT>>>,
+        Vec<ExprUnchecked>,
+        Vec<Vec<LineUnchecked>>,
+        Option<Vec<LineUnchecked>>,
     ),
-    For(VarT, Box<ExprNode<VarT, UnitT>>, Vec<LineNode<VarT, UnitT>>),
+    For(String, Box<ExprUnchecked>, Vec<LineUnchecked>),
     Boolean(bool),
+    Block(Vec<LineUnchecked>),
 }
 
-// impl AstNode for ExprNode<u32> {
-//     fn to_python(&self) -> String {
-//         match self {
-//             ExprNode::Number(i, _) => i.to_string(),
-//             ExprNode::UnaryMinus(expr) => format!("-{}", expr.to_python()),
-//             ExprNode::If(_, _, _) => unimplemented!(),
-//             ExprNode::Variable(var) => var.to_string(),
-//             _ => unimplemented!(),
-//         }
-//     }
-// }
+#[derive(Debug)]
+pub struct Expr {
+    pub info: ExprInfo,
+    pub type_: Type,
+}
+
+#[derive(Debug)]
+pub enum ExprInfo {
+    Number(i64),
+    UnaryMinus(Box<Expr>),
+    BinOp {
+        lhs: Box<Expr>,
+        op: Op,
+        rhs: Box<Expr>,
+    },
+    Variable(String),
+    SystemVariable(String),
+    If(Vec<Expr>, Vec<Vec<Line>>, Option<Vec<Line>>),
+    For(String, Box<Expr>, Vec<Line>),
+    Boolean(bool),
+    Block(Vec<Line>),
+    FunctionCall(Box<Expr>, Vec<Expr>),
+}
 
 #[derive(Debug)]
 pub enum Op {
@@ -58,4 +72,11 @@ pub enum Op {
     Modulo,
     Power,
     Range,
+}
+
+#[derive(Debug)]
+pub enum AssignmentType {
+    Normal,
+    Let,
+    Const,
 }

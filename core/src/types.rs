@@ -4,39 +4,50 @@ use crate::units::UnitSet;
 
 pub struct TypeContext {
     scopes: Vec<Scope>,
-    counter: u32,
+    counter: usize,
 }
 
 impl TypeContext {
-    pub fn new() -> Self {
+    pub fn new(std_lib: Vec<(String, String, Type)>) -> Self {
+        let mut variables = HashMap::new();
+        for (name, py_name, type_) in std_lib {
+            variables.insert(name, (py_name, type_, true));
+        }
+
         TypeContext {
-            scopes: vec![Scope::new()],
-            counter: 0,
+            scopes: vec![Scope { variables }],
+            counter: 1,
         }
     }
 
     pub fn push_scope(&mut self) {
-        self.scopes.push(Scope::new());
+        let variables = HashMap::new();
+        self.scopes.push(Scope { variables });
     }
 
     pub fn pop_scope(&mut self) {
         self.scopes.pop();
     }
 
-    pub fn insert_variable(&mut self, name: String, type_: Type) -> u32 {
+    pub fn insert_variable(&mut self, name: String, type_: Type, const_: bool) -> String {
+        let type_ = match type_ {
+            Type::Number(unit_set, _) if !const_ => Type::Number(unit_set, None),
+            type_ => type_,
+        };
         self.counter += 1;
+        let id = format!("var_{}", self.counter);
         self.scopes
             .last_mut()
             .unwrap()
             .variables
-            .insert(name, (self.counter, type_));
-        self.counter
+            .insert(name, (id.clone(), type_, const_));
+        id
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<(&u32, &Type)> {
+    pub fn get_variable(&self, name: &str) -> Option<&(String, Type, bool)> {
         for scope in self.scopes.iter().rev() {
-            if let Some((id, type_)) = scope.variables.get(name) {
-                return Some((id, type_));
+            if let Some(var) = scope.variables.get(name) {
+                return Some(var);
             }
         }
         None
@@ -44,23 +55,22 @@ impl TypeContext {
 }
 
 pub struct Scope {
-    pub variables: HashMap<String, (u32, Type)>,
-}
-
-impl Scope {
-    pub fn new() -> Self {
-        Scope {
-            variables: HashMap::new(),
-        }
-    }
+    pub variables: HashMap<String, (String, Type, bool)>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Type {
     Number(UnitSet, Option<NumberConstant>),
+    Function(Vec<Type>, Box<Type>),
     Range,
     Bool,
     Void,
+}
+
+impl Type {
+    pub fn number() -> Self {
+        Self::Number(UnitSet::empty(), None)
+    }
 }
 
 impl PartialEq for Type {
@@ -77,4 +87,13 @@ impl Eq for Type {}
 pub enum NumberConstant {
     Integer(i64),
     Float(f64),
+}
+
+impl ToString for NumberConstant {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Integer(n) => n.to_string(),
+            Self::Float(n) => n.to_string(),
+        }
+    }
 }
