@@ -101,11 +101,11 @@ fn build_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             let first_pair = pairs.remove(0);
             let mut inner = first_pair.into_inner();
             let var = inner.next().unwrap().as_str().to_string();
-            let expr = inner.next().unwrap();
+            let expr_ops = inner.next().unwrap();
             let block = inner.next().unwrap();
             ExprUnchecked::For(
                 var,
-                Box::new(build_expr_ast(expr)),
+                Box::new(build_op_expr_ast(expr_ops)),
                 build_line_ast(block.into_inner()),
             )
         }

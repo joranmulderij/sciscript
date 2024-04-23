@@ -5,9 +5,9 @@ block =  { "{" ~ lines? ~ "}" }
 line  = _{ (unitdef_line | assignment_line | expr_line | comment) ~ comment? }
 
 expr_line     =  { expr }
-expr          =  { for_statement | if_statement | expr_ops+ }
+expr          =  { for_statement | if_statement | (expr_ops+) }
 if_statement  =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
-for_statement =  { for ~ variable ~ in ~ expr ~ block }
+for_statement =  { for ~ variable ~ in ~ expr_ops ~ block }
 expr_ops      =  { atom ~ (bin_op ~ atom)* }
 bin_op        = _{ add | subtract | multiply | divide | modulo | power | range }
 atom          = _{ unary_minus? ~ primary }
@@ -20,7 +20,7 @@ boolean = _{ true_ | false_ }
 number  =  { integer }
 integer = @{ ASCII_DIGIT+ }
 
-variable = @{ !"in" ~ (ASCII_ALPHA | "_")+ }
+variable = @{ !"in" ~ !"for" ~ (ASCII_ALPHA | "_")+ }
 
 assignment_line        = _{ const_assignment_line | let_assignment_line | normal_assignment_line }
 normal_assignment_line =  { variable ~ "=" ~ expr }
