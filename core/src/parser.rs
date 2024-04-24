@@ -2,7 +2,8 @@ use pest::iterators::Pair;
 use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
 
-use crate::ast::{ExprUnchecked, LineUnchecked, Op};
+use crate::ast::{ExprUnchecked, LineUnchecked, Op, UncheckedTypeAnnotation};
+use crate::types::Type;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "grammar.pest"]
@@ -145,6 +146,28 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 let inner = primary.into_inner();
                 let lines = build_line_ast(inner);
                 ExprUnchecked::Block(lines)
+            }
+            Rule::lambda => {
+                let mut inner = primary.into_inner();
+                let args = inner.next().unwrap();
+                let expr = inner.next().unwrap();
+                let args = args
+                    .into_inner()
+                    .map(|arg| {
+                        let mut inner = arg.into_inner();
+                        let name = inner.next().unwrap().as_str().to_string();
+                        let type_ = inner.next().unwrap();
+                        let type_ = match type_.as_rule() {
+                            Rule::num_type => UncheckedTypeAnnotation::Number("".to_string()),
+                            Rule::variable => {
+                                UncheckedTypeAnnotation::Custom(type_.as_str().to_string())
+                            }
+                            _ => unreachable!(),
+                        };
+                        (name, type_)
+                    })
+                    .collect();
+                ExprUnchecked::Lambda(args, Box::new(build_expr_ast(expr)))
             }
             rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
         })

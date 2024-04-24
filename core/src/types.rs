@@ -62,6 +62,7 @@ pub struct Scope {
 pub enum Type {
     Number(UnitSet, Option<NumberConstant>),
     Function(Vec<Type>, Box<Type>),
+    Type(Box<Type>),
     Range,
     Bool,
     Void,

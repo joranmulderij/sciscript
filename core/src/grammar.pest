@@ -13,12 +13,19 @@ bin_op        = _{ add | subtract | multiply | divide | modulo | power | range }
 atom          = _{ unary_minus? ~ primary }
 primary       = _{ literal | "(" ~ expr ~ ")" }
 
-literal = _{ boolean | number | variable | block }
+literal = _{ boolean | number | variable | block | lambda }
+
+lambda    = { "(" ~ arguments ~ ")" ~ "=>" ~ expr }
+arguments = { (argument ~ ("," ~ argument)*)? }
+argument  = { variable ~ ":" ~ type }
 
 boolean = _{ true_ | false_ }
 
 number  =  { integer }
 integer = @{ ASCII_DIGIT+ }
+
+type     = _{ num_type | variable }
+num_type =  { "num" }
 
 variable = @{ !"in" ~ !"for" ~ (ASCII_ALPHA | "_")+ }
 

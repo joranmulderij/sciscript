@@ -1,7 +1,10 @@
 use crate::{
-    ast::{AssignmentType, Expr, ExprInfo, ExprUnchecked, Line, LineUnchecked, Op},
+    ast::{
+        AssignmentType, Expr, ExprInfo, ExprUnchecked, Line, LineUnchecked, Op,
+        UncheckedTypeAnnotation,
+    },
     types::{NumberConstant, Type, TypeContext},
-    units::{Unit, UnitSet},
+    units::{parse_unit, Unit, UnitSet},
 };
 
 pub fn check_types(
@@ -183,6 +186,28 @@ fn check_expr_types(
                 info: ExprInfo::Block(new_lines),
                 type_,
             })
+        }
+        ExprUnchecked::Lambda(parameters, block) => {
+            let mut param_types: Vec<Type> = Vec::new();
+            let mut param_names: Vec<String> = Vec::new();
+            type_context.push_scope();
+            for (name, type_) in parameters {
+                let type_ = match type_ {
+                    UncheckedTypeAnnotation::Number(unit) => {
+                        let unit = parse_unit(&unit);
+                        Type::Number(unit, None)
+                    }
+                    UncheckedTypeAnnotation::Custom(_) => unimplemented!(),
+                };
+                let name = type_context.insert_variable(name, type_.clone(), true);
+                param_types.push(type_);
+                param_names.push(name);
+            }
+            let block = check_expr_types(*block, &mut type_context)?;
+            type_context.pop_scope();
+            let type_ = Type::Function(param_types, Box::new(block.type_.clone()));
+            let info = ExprInfo::Lambda(param_names, Box::new(block));
+            Ok(Expr { info, type_ })
         }
     }
 }

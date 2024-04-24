@@ -11,6 +11,16 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
             "print".to_string(),
             Type::Function(vec![Type::number()], Box::new(Type::Void)),
         ),
+        (
+            "int".to_string(),
+            "int".to_string(),
+            Type::Type(Box::new(Type::number())),
+        ),
+        (
+            "num".to_string(),
+            "float".to_string(),
+            Type::Type(Box::new(Type::number())),
+        ),
     ];
     let imports = "
 import math

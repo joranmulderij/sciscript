@@ -123,7 +123,17 @@ impl Expr {
                 }
                 (pl1 + &pl2, format!("{}({})", fun, args.join(", ")))
             }
-            ExprInfo::SystemVariable(name) => ("".to_string(), name.clone()),
+            ExprInfo::Lambda(parameters, block) => {
+                let mut pl = String::new();
+                pl.push_str("def func(");
+                pl.push_str(&parameters.join(", "));
+                pl.push_str("):\n");
+                let (block_pl, expr) = (*block).to_python_code();
+                pl.push_str(&indent(block_pl));
+                pl.push_str("\n");
+                pl.push_str(&indent("return ".to_string() + &expr));
+                (pl, "func".to_string())
+            }
         }
     }
 }

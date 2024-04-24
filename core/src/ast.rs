@@ -37,6 +37,13 @@ pub enum ExprUnchecked {
     For(String, Box<ExprUnchecked>, Vec<LineUnchecked>),
     Boolean(bool),
     Block(Vec<LineUnchecked>),
+    Lambda(Vec<(String, UncheckedTypeAnnotation)>, Box<ExprUnchecked>),
+}
+
+#[derive(Debug)]
+pub enum UncheckedTypeAnnotation {
+    Number(String),
+    Custom(String),
 }
 
 #[derive(Debug)]
@@ -55,12 +62,12 @@ pub enum ExprInfo {
         rhs: Box<Expr>,
     },
     Variable(String),
-    SystemVariable(String),
     If(Vec<Expr>, Vec<Vec<Line>>, Option<Vec<Line>>),
     For(String, Box<Expr>, Vec<Line>),
     Boolean(bool),
     Block(Vec<Line>),
     FunctionCall(Box<Expr>, Vec<Expr>),
+    Lambda(Vec<String>, Box<Expr>),
 }
 
 #[derive(Debug)]
