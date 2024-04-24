@@ -1,5 +1,5 @@
 use crate::{
-    ast::{Expr, ExprInfo, Line, Op},
+    ast::{Expr, Line, Op},
     types::Type,
 };
 
@@ -15,17 +15,16 @@ pub fn generate_python_code(ast: Vec<Line>) -> String {
 impl Expr {
     /// Expression code, previous line code
     fn to_python_code(&self) -> (String, String) {
-        let Expr { type_, info } = self;
-        match info {
-            ExprInfo::Number(n) => ("".to_string(), n.to_string()),
-            ExprInfo::UnaryMinus(expr) => {
+        match self {
+            Expr::Number(n) => ("".to_string(), n.to_string()),
+            Expr::UnaryMinus(expr) => {
                 let code = expr.to_python_code();
                 (code.0, format!("-{}", code.1))
             }
-            ExprInfo::BinOp { lhs, op, rhs } => {
+            Expr::BinOp { lhs, op, rhs } => {
                 let (pl1, lhs) = lhs.to_python_code();
                 let (pl2, rhs) = rhs.to_python_code();
-                if let Type::Range = type_ {
+                if let Op::Range = op {
                     return (format!("range({}, {})", lhs, rhs), pl1 + &pl2);
                 }
                 let expr = format!(
@@ -44,15 +43,8 @@ impl Expr {
                 );
                 (pl1 + &pl2, expr)
             }
-            ExprInfo::Variable(id) => {
-                let expr = if let Type::Number(_, Some(number_constant)) = type_ {
-                    number_constant.to_string()
-                } else {
-                    id.clone()
-                };
-                ("".to_string(), expr)
-            }
-            ExprInfo::If(conditions, bodies, else_) => {
+            Expr::Variable(id) => ("".to_string(), id.clone()),
+            Expr::If(conditions, bodies, else_) => {
                 // let mut pl = String::new();
                 // for (i, (condition, body)) in conditions.iter().zip(bodies.iter()).enumerate() {
                 //     if i == 0 {
@@ -75,7 +67,7 @@ impl Expr {
                 // pl
                 unimplemented!()
             }
-            ExprInfo::For(id, range, body) => {
+            Expr::For(id, range, body) => {
                 let mut lines: Vec<String> = Vec::new();
                 for i in 0..body.len() - 1 {
                     lines.push(indent(body[i].to_python_code()));
@@ -90,19 +82,19 @@ impl Expr {
                 );
                 (pl2, expr)
             }
-            ExprInfo::Boolean(b) => {
+            Expr::Boolean(b) => {
                 if *b {
                     ("".to_string(), "True".to_string())
                 } else {
                     ("".to_string(), "False".to_string())
                 }
             }
-            // ExprInfo::Block(lines) => lines
+            // Expr::Block(lines) => lines
             //     .iter()
             //     .map(|line| line.to_python_code())
             //     .collect::<Vec<_>>()
             //     .join("\n"),
-            ExprInfo::Block(body) => {
+            Expr::Block(body) => {
                 let mut lines: Vec<String> = Vec::new();
                 for i in 0..body.len() - 1 {
                     lines.push(body[i].to_python_code());
@@ -112,7 +104,7 @@ impl Expr {
                 let pl = lines.join("\n");
                 (pl, expr)
             }
-            ExprInfo::FunctionCall(fun, params) => {
+            Expr::FunctionCall(fun, params) => {
                 let (pl1, fun) = fun.to_python_code();
                 let mut pl2 = String::new();
                 let mut args = Vec::new();
@@ -123,11 +115,14 @@ impl Expr {
                 }
                 (pl1 + &pl2, format!("{}({})", fun, args.join(", ")))
             }
-            ExprInfo::Lambda(parameters, block) => {
+            Expr::Lambda(parameters, block, deps) => {
                 let mut pl = String::new();
                 pl.push_str("def func(");
                 pl.push_str(&parameters.join(", "));
                 pl.push_str("):\n");
+                for dep in deps {
+                    pl.push_str(&format!("    global {}\n", dep));
+                }
                 let (block_pl, expr) = (*block).to_python_code();
                 pl.push_str(&indent(block_pl));
                 pl.push_str("\n");

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::units::UnitSet;
 
@@ -25,8 +25,13 @@ impl TypeContext {
         self.scopes.push(Scope { variables });
     }
 
-    pub fn pop_scope(&mut self) {
+    pub fn pop_scope(&mut self) -> HashSet<String> {
+        let mut variables = HashSet::new();
+        for (_, (id, _, _)) in self.scopes.last().unwrap().variables.iter() {
+            variables.insert(id.clone());
+        }
         self.scopes.pop();
+        variables
     }
 
     pub fn insert_variable(&mut self, name: String, type_: Type, const_: bool) -> String {
@@ -51,6 +56,12 @@ impl TypeContext {
             }
         }
         None
+    }
+
+    pub fn print_last_scope(&self) {
+        for (name, (id, type_, const_)) in self.scopes.last().unwrap().variables.iter() {
+            println!("{}: {} {:?} {}", name, id, type_, const_);
+        }
     }
 }
 

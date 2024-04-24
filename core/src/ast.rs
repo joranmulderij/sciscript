@@ -2,6 +2,8 @@
 //     fn to_python(&self) -> String;
 // }
 
+use std::collections::HashSet;
+
 use crate::types::Type;
 
 #[derive(Debug)]
@@ -47,13 +49,7 @@ pub enum UncheckedTypeAnnotation {
 }
 
 #[derive(Debug)]
-pub struct Expr {
-    pub info: ExprInfo,
-    pub type_: Type,
-}
-
-#[derive(Debug)]
-pub enum ExprInfo {
+pub enum Expr {
     Number(i64),
     UnaryMinus(Box<Expr>),
     BinOp {
@@ -67,7 +63,7 @@ pub enum ExprInfo {
     Boolean(bool),
     Block(Vec<Line>),
     FunctionCall(Box<Expr>, Vec<Expr>),
-    Lambda(Vec<String>, Box<Expr>),
+    Lambda(Vec<String>, Box<Expr>, HashSet<String>),
 }
 
 #[derive(Debug)]

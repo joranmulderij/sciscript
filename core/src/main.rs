@@ -22,16 +22,16 @@ fn main() -> io::Result<()> {
     println!("{:?}", ast);
     let (imports, std_lib) = std_lib::get_std_lib();
     let mut type_context = TypeContext::new(std_lib);
-    let (_, ast2) = match check_types(ast, &mut type_context) {
+    let (ast, _type, _deps) = match check_types(ast, &mut type_context) {
         Ok(ast) => ast,
         Err(e) => {
             eprintln!("{}", e);
             return Ok(());
         }
     };
-    println!("{:?}", ast2);
+    println!("{:?}", ast);
 
-    let python_code = crate::python_codegen::generate_python_code(ast2);
+    let python_code = crate::python_codegen::generate_python_code(ast);
     let python_code = format!(
         "
 {}
@@ -40,6 +40,8 @@ fn main() -> io::Result<()> {
         imports, python_code
     );
     std::fs::write("output.py", python_code)?;
+
+    // println!("{}", "sdf".to_string() == "sdf".to_string());
 
     Ok(())
 }

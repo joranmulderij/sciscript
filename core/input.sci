@@ -4,6 +4,7 @@ unit kg
 unit s
 
 N = kg*m/s^2
+N_ = N
 
 a = 1
 b = 1
