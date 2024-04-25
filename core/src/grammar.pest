@@ -10,7 +10,10 @@ if_statement  =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ blo
 for_statement =  { for ~ variable ~ in ~ expr_ops ~ block }
 expr_ops      =  { atom ~ (bin_op ~ atom)* }
 bin_op        = _{ add | subtract | multiply | divide | modulo | power | range }
-atom          = _{ unary_minus? ~ primary }
+atom          = _{ prefixes? ~ primary ~ postfixes? }
+prefixes      = _{ unary_minus }
+postfixes     = _{ propget? }
+propget       =  { "." ~ variable }
 primary       = _{ literal | "(" ~ expr ~ ")" }
 
 literal = _{ boolean | number | variable | block | lambda }
@@ -21,11 +24,12 @@ argument  = { variable ~ ":" ~ type }
 
 boolean = _{ true_ | false_ }
 
-number  =  { integer }
+number  = _{ float | integer }
+float   =  { ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 integer = @{ ASCII_DIGIT+ }
 
 type     = _{ num_type | variable }
-num_type =  { "num" }
+num_type =  { "num" ~ ("[" ~ expr_ops ~ "]")? }
 
 variable = @{ !"in" ~ !"for" ~ (ASCII_ALPHA | "_")+ }
 

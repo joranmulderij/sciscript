@@ -1,7 +1,4 @@
-use crate::{
-    ast::{Expr, Line, Op},
-    types::Type,
-};
+use crate::ast::{Expr, Line, Op};
 
 pub fn generate_python_code(ast: Vec<Line>) -> String {
     let mut python_code = String::new();

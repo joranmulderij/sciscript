@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
 use crate::units::UnitSet;
 
@@ -58,11 +61,11 @@ impl TypeContext {
         None
     }
 
-    pub fn print_last_scope(&self) {
-        for (name, (id, type_, const_)) in self.scopes.last().unwrap().variables.iter() {
-            println!("{}: {} {:?} {}", name, id, type_, const_);
-        }
-    }
+    // pub fn print_last_scope(&self) {
+    //     for (name, (id, type_, const_)) in self.scopes.last().unwrap().variables.iter() {
+    //         println!("{}: {} {:?} {}", name, id, type_, const_);
+    //     }
+    // }
 }
 
 pub struct Scope {
@@ -99,6 +102,83 @@ impl Eq for Type {}
 pub enum NumberConstant {
     Integer(i64),
     Float(f64),
+}
+
+impl Add for NumberConstant {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l + r),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l + r),
+            (Self::Integer(l), Self::Float(r)) => Self::Float(l as f64 + r),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l + r as f64),
+        }
+    }
+}
+
+impl Sub for NumberConstant {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l - r),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l - r),
+            (Self::Integer(l), Self::Float(r)) => Self::Float(l as f64 - r),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l - r as f64),
+        }
+    }
+}
+
+impl Mul for NumberConstant {
+    type Output = Self;
+
+    fn mul(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l * r),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l * r),
+            (Self::Integer(l), Self::Float(r)) => Self::Float(l as f64 * r),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l * r as f64),
+        }
+    }
+}
+
+impl Div for NumberConstant {
+    type Output = Self;
+
+    fn div(self, other: Self) -> Self {
+        match (self, other) {
+            // (Self::Integer(1), Self::Integer(1)) => Self::Integer(1),
+            (Self::Integer(l), Self::Integer(r)) => Self::Float(l as f64 / r as f64),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l / r),
+            (Self::Integer(l), Self::Float(r)) => Self::Float(l as f64 / r),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l / r as f64),
+        }
+    }
+}
+
+impl Rem for NumberConstant {
+    type Output = Self;
+
+    fn rem(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Integer(l % r),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l % r),
+            (Self::Integer(l), Self::Float(r)) => Self::Float(l as f64 % r),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l % r as f64),
+        }
+    }
+}
+
+impl NumberConstant {
+    pub fn pow(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Self::Integer(l), Self::Integer(r)) => Self::Float((*l as f64).powi(*r as i32)),
+            (Self::Float(l), Self::Float(r)) => Self::Float(l.powf(*r)),
+            (Self::Integer(l), Self::Float(r)) => Self::Float((*l as f64).powf(*r)),
+            (Self::Float(l), Self::Integer(r)) => Self::Float(l.powi(*r as i32)),
+        }
+    }
 }
 
 impl ToString for NumberConstant {

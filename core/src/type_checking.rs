@@ -1,9 +1,9 @@
-use std::collections::{hash_set, HashSet};
+use std::collections::HashSet;
 
 use crate::{
-    ast::{AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, UncheckedTypeAnnotation},
+    ast::{AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, TypeAnnotationUnchecked},
     types::{NumberConstant, Type, TypeContext},
-    units::{parse_unit, Unit, UnitSet},
+    units::{Unit, UnitSet},
 };
 
 pub fn check_types(
@@ -65,9 +65,9 @@ fn check_expr_types(
     mut type_context: &mut TypeContext,
 ) -> Result<(Expr, Type, HashSet<String>), String> {
     match expr {
-        ExprUnchecked::Number(i) => Ok((
-            Expr::Number(i),
-            Type::Number(UnitSet::empty(), Some(NumberConstant::Integer(i))),
+        ExprUnchecked::Number(num) => Ok((
+            Expr::Number(num.clone()),
+            Type::Number(UnitSet::empty(), Some(num)),
             HashSet::new(),
         )),
         ExprUnchecked::Boolean(b) => Ok((Expr::Boolean(b), Type::Bool, HashSet::new())),
@@ -90,7 +90,7 @@ fn check_expr_types(
         }
         ExprUnchecked::Sequencial(lhs, rhs) => {
             let (expr1, type1, dep1) = check_expr_types(*lhs, type_context)?;
-            let (expr2, type2, mut dep2) = check_expr_types(*rhs, type_context)?;
+            let (expr2, type2, dep2) = check_expr_types(*rhs, type_context)?;
             match (&type1, &type2) {
                 (Type::Number(_, _), Type::Number(_, _)) => {
                     let pack1 = (expr1, type1, dep1);
@@ -132,7 +132,8 @@ fn check_expr_types(
             let mut new_conditions: Vec<Expr> = Vec::new();
             let mut deps: HashSet<String> = HashSet::new();
             for condition in conditions {
-                let (expr, type_, deps) = check_expr_types(condition, &mut type_context)?;
+                let (expr, type_, dep) = check_expr_types(condition, &mut type_context)?;
+                deps.extend(dep);
                 if type_ != Type::Bool {
                     return Err("Type mismatch in if condition".to_string());
                 }
@@ -174,7 +175,6 @@ fn check_expr_types(
             type_context.push_scope();
             let id = type_context.insert_variable(var.clone(), i_type, true);
             let (block, type_, dep2) = check_types(block, type_context)?;
-            type_context.print_last_scope();
             let variables = type_context.pop_scope();
             let info = Expr::For(id, Box::new(expr), block);
             let mut deps = dep1;
@@ -196,11 +196,30 @@ fn check_expr_types(
             type_context.push_scope();
             for (name, type_) in parameters {
                 let type_ = match type_ {
-                    UncheckedTypeAnnotation::Number(unit) => {
-                        let unit = parse_unit(&unit);
+                    TypeAnnotationUnchecked::Number(unit_expr) => {
+                        let type_ = match unit_expr {
+                            Some(unit_expr) => {
+                                // _dep is ignored because it only gets used in the type context
+                                let (_expr, type_, _dep) =
+                                    check_expr_types(unit_expr, &mut type_context)?;
+                                Some(type_)
+                            }
+                            None => None,
+                        };
+                        println!("{:?}", type_);
+                        let unit = match type_ {
+                            Some(Type::Number(unit, Some(NumberConstant::Integer(1)))) => unit,
+                            Some(Type::Number(unit, Some(NumberConstant::Float(f))))
+                                if f == 1.0 =>
+                            {
+                                unit
+                            }
+                            None => UnitSet::empty(),
+                            _ => return Err("Type mismatch in number annotation".to_string()),
+                        };
                         Type::Number(unit, None)
                     }
-                    UncheckedTypeAnnotation::Custom(_) => unimplemented!(),
+                    TypeAnnotationUnchecked::Custom(_) => unimplemented!(),
                 };
                 let name = type_context.insert_variable(name, type_.clone(), true);
                 param_types.push(type_);
@@ -217,6 +236,7 @@ fn check_expr_types(
             let expr = Expr::Lambda(param_names, Box::new(block), deps.clone());
             Ok((expr, type_, deps))
         }
+        ExprUnchecked::GetProperty(expr, property) => unimplemented!(),
     }
 }
 
@@ -226,7 +246,7 @@ fn handle_bin_op(
     right: (Expr, Type, HashSet<String>),
 ) -> Result<(Expr, Type, HashSet<String>), String> {
     let (expr1, type1, dep1) = left;
-    let (expr2, type2, mut dep2) = right;
+    let (expr2, type2, dep2) = right;
     let (expr, type_) = match (type1, &op, type2) {
         (Type::Number(unit1, _), Op::Range, Type::Number(unit2, _)) => {
             if !unit1.is_empty() || !unit2.is_empty() {
@@ -242,18 +262,16 @@ fn handle_bin_op(
             )
         }
         (Type::Number(unit1, c1), _, Type::Number(unit2, c2)) => {
-            let c = match (c1, &c2) {
-                (Some(NumberConstant::Integer(i1)), Some(NumberConstant::Integer(i2))) => {
-                    match op {
-                        Op::Multiply => Some(NumberConstant::Integer(i1 * i2)),
-                        Op::Divide => Some(NumberConstant::Float(i1 as f64 / *i2 as f64)),
-                        Op::Add => Some(NumberConstant::Integer(i1 + i2)),
-                        Op::Subtract => Some(NumberConstant::Integer(i1 - i2)),
-                        Op::Modulo => Some(NumberConstant::Integer(i1 % i2)),
-                        Op::Power => Some(NumberConstant::Float((i1 as f64).powf(*i2 as f64))),
-                        _ => unreachable!(),
-                    }
-                }
+            let const_ = match (c1, c2.clone()) {
+                (Some(const1), Some(const2)) => match op {
+                    Op::Multiply => Some(const1 * const2),
+                    Op::Divide => Some(const1 / const2),
+                    Op::Add => Some(const1 + const2),
+                    Op::Subtract => Some(const1 - const2),
+                    Op::Modulo => Some(const1 % const2),
+                    Op::Power => Some(const1.pow(&const2)),
+                    _ => unreachable!(),
+                },
                 // TODO: Handle floats
                 _ => None,
             };
@@ -282,16 +300,15 @@ fn handle_bin_op(
                 }
                 _ => unreachable!(),
             };
-            let expr = match c {
-                Some(NumberConstant::Integer(i)) => Expr::Number(i),
-                Some(NumberConstant::Float(f)) => Expr::Number(f as i64),
+            let expr = match const_.clone() {
+                Some(const_) => Expr::Number(const_),
                 _ => Expr::BinOp {
                     lhs: Box::new(expr1),
                     op,
                     rhs: Box::new(expr2),
                 },
             };
-            (expr, Type::Number(unit, c))
+            (expr, Type::Number(unit, const_))
         }
         _ => return Err("Type mismatch in binary operation".to_string()),
     };

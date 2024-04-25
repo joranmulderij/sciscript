@@ -3,10 +3,9 @@ unit m
 unit kg
 unit s
 
-N = kg*m/s^2
-N_ = N
+const N = kg*m/s^2
 
-a = 1
+a = 1.2
 b = 1
 
 
@@ -17,6 +16,12 @@ calculate_f = (f: num) => {
         b = c
     }
 }
+
+f = (f: num[N]) => {
+    2N + f
+}
+
+fofrce = f(100N)
 
 out = calculate_f(100)
 

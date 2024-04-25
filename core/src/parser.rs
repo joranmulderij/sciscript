@@ -2,8 +2,8 @@ use pest::iterators::Pair;
 use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
 
-use crate::ast::{ExprUnchecked, LineUnchecked, Op, UncheckedTypeAnnotation};
-use crate::types::Type;
+use crate::ast::{ExprUnchecked, LineUnchecked, Op, TypeAnnotationUnchecked};
+use crate::types::NumberConstant;
 
 #[derive(pest_derive::Parser)]
 #[grammar = "grammar.pest"]
@@ -66,7 +66,7 @@ lazy_static::lazy_static! {
             .op(Op::infix(Rule::add, Left) | Op::infix(Rule::subtract, Left))
             .op(Op::infix(Rule::multiply, Left) | Op::infix(Rule::divide, Left) | Op::infix(Rule::modulo, Left))
             .op(Op::infix(Rule::power, Left))
-            .op(Op::prefix(Rule::unary_minus))
+            .op(Op::prefix(Rule::unary_minus) | Op::postfix(Rule::propget))
     };
 }
 
@@ -137,10 +137,13 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             Rule::variable => ExprUnchecked::Variable(primary.as_str().to_string()),
             Rule::true_ => ExprUnchecked::Boolean(true),
             Rule::false_ => ExprUnchecked::Boolean(false),
-            Rule::number => {
-                let mut inner = primary.into_inner();
-                let number = inner.next().unwrap().as_str();
-                ExprUnchecked::Number(number.parse::<i64>().unwrap())
+            Rule::integer => {
+                let number = primary.as_str();
+                ExprUnchecked::Number(NumberConstant::Integer(number.parse::<i64>().unwrap()))
+            }
+            Rule::float => {
+                let number = primary.as_str();
+                ExprUnchecked::Number(NumberConstant::Float(number.parse::<f64>().unwrap()))
             }
             Rule::block => {
                 let inner = primary.into_inner();
@@ -158,9 +161,16 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                         let name = inner.next().unwrap().as_str().to_string();
                         let type_ = inner.next().unwrap();
                         let type_ = match type_.as_rule() {
-                            Rule::num_type => UncheckedTypeAnnotation::Number("".to_string()),
+                            Rule::num_type => {
+                                let unit = type_.into_inner().next();
+                                let unit = match unit {
+                                    Some(unit) => Some(build_op_expr_ast(unit)),
+                                    None => None,
+                                };
+                                TypeAnnotationUnchecked::Number(unit)
+                            }
                             Rule::variable => {
-                                UncheckedTypeAnnotation::Custom(type_.as_str().to_string())
+                                TypeAnnotationUnchecked::Custom(type_.as_str().to_string())
                             }
                             _ => unreachable!(),
                         };
@@ -197,6 +207,16 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             // }
             _ => unreachable!(
                 "Expr::parse expected prefix operation, found {:?}",
+                op.as_rule()
+            ),
+        })
+        .map_postfix(|lhs, op| match op.as_rule() {
+            Rule::propget => ExprUnchecked::GetProperty(
+                Box::new(lhs),
+                op.into_inner().next().unwrap().as_str().to_string(),
+            ),
+            _ => unreachable!(
+                "Expr::parse expected postfix operation, found {:?}",
                 op.as_rule()
             ),
         })

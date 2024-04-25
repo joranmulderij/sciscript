@@ -3,11 +3,6 @@ use std::{
     ops::{Add, Mul, Sub},
 };
 
-pub fn parse_unit(input: &str) -> UnitSet {
-    // TODO: Implement this function
-    UnitSet::empty()
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UnitSet {
     units: HashMap<Unit, i64>,

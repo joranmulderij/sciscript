@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use crate::types::Type;
+use crate::types::NumberConstant;
 
 #[derive(Debug)]
 pub enum LineUnchecked {
@@ -21,8 +21,9 @@ pub enum Line {
 
 #[derive(Debug)]
 pub enum ExprUnchecked {
-    Number(i64),
+    Number(NumberConstant),
     UnaryMinus(Box<ExprUnchecked>),
+    GetProperty(Box<ExprUnchecked>, String),
     BinOp {
         lhs: Box<ExprUnchecked>,
         op: Op,
@@ -39,18 +40,18 @@ pub enum ExprUnchecked {
     For(String, Box<ExprUnchecked>, Vec<LineUnchecked>),
     Boolean(bool),
     Block(Vec<LineUnchecked>),
-    Lambda(Vec<(String, UncheckedTypeAnnotation)>, Box<ExprUnchecked>),
+    Lambda(Vec<(String, TypeAnnotationUnchecked)>, Box<ExprUnchecked>),
 }
 
 #[derive(Debug)]
-pub enum UncheckedTypeAnnotation {
-    Number(String),
+pub enum TypeAnnotationUnchecked {
+    Number(Option<ExprUnchecked>),
     Custom(String),
 }
 
 #[derive(Debug)]
 pub enum Expr {
-    Number(i64),
+    Number(NumberConstant),
     UnaryMinus(Box<Expr>),
     BinOp {
         lhs: Box<Expr>,
