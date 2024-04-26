@@ -158,7 +158,7 @@ fn build_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
     }
 }
 
-pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
+fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
     assert!(pair.as_rule() == Rule::expr_ops);
     PRATT_PARSER
         .map_primary(|primary| match primary.as_rule() {
@@ -259,26 +259,34 @@ fn parse_args(pair: Pair<Rule>) -> Vec<(String, TypeAnnotationUnchecked)> {
 }
 
 fn parse_type_annotation(type_annotation: Pair<'_, Rule>) -> TypeAnnotationUnchecked {
-    assert!(type_annotation.as_rule() == Rule::type_annotation);
-    let type_annotation = type_annotation.into_inner().next().unwrap();
-    match type_annotation.as_rule() {
-        Rule::num_type => {
-            let unit = type_annotation.into_inner().next();
-            let unit = match unit {
-                Some(unit) => Some(build_op_expr_ast(unit)),
-                None => None,
-            };
-            TypeAnnotationUnchecked::Number(unit)
-        }
-        Rule::list_type => {
-            let item_type = type_annotation.into_inner().next();
-            let item_type = match item_type {
-                Some(item_type) => Some(build_op_expr_ast(item_type)),
-                None => None,
-            };
-            TypeAnnotationUnchecked::List(item_type)
-        }
-        Rule::variable => TypeAnnotationUnchecked::Custom(type_annotation.as_str().to_string()),
-        _ => unreachable!(),
-    }
+    assert!(
+        type_annotation.as_rule() == Rule::type_annotation,
+        "{:?}",
+        type_annotation.as_rule()
+    );
+    let mut inner = type_annotation.into_inner();
+    let name = inner.next().unwrap().as_str().to_string();
+    let generics = inner.map(build_op_expr_ast).collect();
+    TypeAnnotationUnchecked { name, generics }
+    // let type_annotation = type_annotation.into_inner().next().unwrap();
+    // match type_annotation.as_rule() {
+    //     Rule::num_type => {
+    //         let unit = type_annotation.into_inner().next();
+    //         let unit = match unit {
+    //             Some(unit) => Some(build_op_expr_ast(unit)),
+    //             None => None,
+    //         };
+    //         TypeAnnotationUnchecked::Number(unit)
+    //     }
+    //     Rule::list_type => {
+    //         let item_type = type_annotation.into_inner().next();
+    //         let item_type = match item_type {
+    //             Some(item_type) => Some(build_op_expr_ast(item_type)),
+    //             None => None,
+    //         };
+    //         TypeAnnotationUnchecked::List(item_type)
+    //     }
+    //     Rule::variable => TypeAnnotationUnchecked::Custom(type_annotation.as_str().to_string()),
+    //     _ => unreachable!(),
+    // }
 }

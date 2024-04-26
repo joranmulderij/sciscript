@@ -53,10 +53,9 @@ pub enum ExprUnchecked {
 }
 
 #[derive(Debug)]
-pub enum TypeAnnotationUnchecked {
-    Number(Option<ExprUnchecked>),
-    List(Option<ExprUnchecked>),
-    Custom(String),
+pub struct TypeAnnotationUnchecked {
+    pub name: String,
+    pub generics: Vec<ExprUnchecked>,
 }
 
 #[derive(Debug)]

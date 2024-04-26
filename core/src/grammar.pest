@@ -32,9 +32,7 @@ number  = _{ float | integer }
 float   =  { ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 integer = @{ ASCII_DIGIT+ }
 
-type_annotation = { num_type | list_type | variable }
-num_type        = { "num" ~ ("[" ~ expr_ops ~ "]")? }
-list_type       = { "list" ~ ("[" ~ expr_ops ~ "]")? }
+type_annotation = { variable ~ ("[" ~ expr_ops ~ ("," ~ (expr_ops))* ~ "]")? }
 
 variable = @{
     !(keyword ~ !(ASCII_ALPHA | DECIMAL_NUMBER | "_")) ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHA | DECIMAL_NUMBER | "_")*

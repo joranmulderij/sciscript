@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::{
     ast::{AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, TypeAnnotationUnchecked},
-    types::{NumberConstant, Type, TypeContext},
+    types::{FunctionProfile, NumberConstant, Type, TypeContext},
     units::{Unit, UnitSet},
 };
 
@@ -28,7 +28,7 @@ pub fn check_types(
                     AssignmentType::Normal => {
                         if let Some((id, type1, const_)) = type_context.get_variable(&var) {
                             if !type1.can_be_assigned_to(&type2) {
-                                println!("{:?} dflkdjf {:?}", type1, type2);
+                                println!("{:?} {:?}", type1, type2);
                                 return Err("Type mismatch in assignment".to_string());
                             }
                             if *const_ {
@@ -43,6 +43,7 @@ pub fn check_types(
                     AssignmentType::Const | AssignmentType::Let => {
                         let const_ = matches!(assignment_type, AssignmentType::Const);
                         let type_ = if let Some(type_annotation) = type_annotation {
+                            println!("{:?}", type_annotation);
                             let type_ = check_type_annotation_types(type_annotation, type_context)?;
                             if !type_.can_be_assigned_to(&type2) {
                                 return Err("Type mismatch in assignment".to_string());
@@ -111,14 +112,21 @@ fn check_expr_types(
                     let pack2 = (expr2, type2, dep2);
                     handle_bin_op(pack1, Op::Multiply, pack2)
                 }
-                (Type::Function(arguments, returned, has_more_args), param) => {
-                    if !Type::arguments_match_parameters(&arguments, &has_more_args, &vec![param]) {
+                (
+                    Type::Function(FunctionProfile {
+                        parameters: args,
+                        ret,
+                        has_more_args,
+                    }),
+                    param,
+                ) => {
+                    if !Type::arguments_match_parameters(&args, &has_more_args, &vec![param]) {
                         return Err("Type mismatch in sequencial expression".to_string());
                     }
                     let mut deps = dep1;
                     deps.extend(dep2);
                     let expr = Expr::FunctionCall(Box::new(expr1), vec![expr2]);
-                    Ok((expr, *returned.clone(), deps))
+                    Ok((expr, *ret.clone(), deps))
                 }
                 _ => Err("Type mismatch in sequencial expression".to_string()),
             }
@@ -219,7 +227,7 @@ fn check_expr_types(
                 param_names.push(name);
             }
 
-            let has_last_args = if last_parameter_name == Some("args".to_string())
+            let has_more_args = if last_parameter_name == Some("args".to_string())
                 && param_types.last() == Some(&Type::List(Box::new(Type::Any)))
             {
                 param_types.pop();
@@ -229,13 +237,17 @@ fn check_expr_types(
             };
             let (block, return_type, deps) = check_expr_types(*block, &mut type_context)?;
             type_context.pop_scope();
-            let type_ = Type::Function(param_types, Box::new(return_type), has_last_args);
+            let type_ = Type::Function(FunctionProfile {
+                parameters: param_types,
+                ret: Box::new(return_type),
+                has_more_args,
+            });
             let deps: HashSet<String> = deps
                 .iter()
                 .filter(|x| !param_names.contains(x))
                 .map(|x| x.clone())
                 .collect();
-            let expr = Expr::Lambda(param_names, Box::new(block), deps.clone(), has_last_args);
+            let expr = Expr::Lambda(param_names, Box::new(block), deps.clone(), has_more_args);
             Ok((expr, type_, deps))
         }
         ExprUnchecked::GetProperty(_expr, _property) => {
@@ -255,7 +267,7 @@ fn check_expr_types(
                 let (expr, type_, dep) = check_expr_types(item, &mut type_context)?;
                 deps.extend(dep);
                 item_type = match item_type {
-                    Some(item_type) if item_type.can_be_assigned_to(&type_) => Some(Type::Any),
+                    Some(item_type) if !item_type.can_be_assigned_to(&type_) => Some(Type::Any),
                     _ => Some(type_),
                 };
                 new_items.push(expr);
@@ -284,76 +296,68 @@ fn check_expr_types(
             let mut deps: HashSet<String> = HashSet::new();
             let (function, type_, dep1) = check_expr_types(*function, &mut type_context)?;
             deps.extend(dep1);
-            if let Type::Function(parameters, returned, has_more_args) = type_ {
-                let mut new_args: Vec<Expr> = Vec::new();
-                let arguments_result: Result<Vec<Type>, String> = arguments
-                    .drain(..)
-                    .map(|arg| -> Result<Type, String> {
-                        let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
-                        deps.extend(dep);
-                        new_args.push(expr);
-                        Ok(type_)
-                    })
-                    .collect();
-                let arguments = arguments_result?;
-                let arguments_match =
-                    Type::arguments_match_parameters(&arguments, &has_more_args, &parameters);
-                if !arguments_match {
-                    return Err("Type mismatch in function call".to_string());
-                }
+            match type_ {
+                Type::Function(FunctionProfile {
+                    parameters,
+                    ret,
+                    has_more_args,
+                })
+                | Type::Type(
+                    _,
+                    Some(FunctionProfile {
+                        parameters,
+                        ret,
+                        has_more_args,
+                    }),
+                ) => {
+                    let mut new_args: Vec<Expr> = Vec::new();
+                    let arguments_result: Result<Vec<Type>, String> = arguments
+                        .drain(..)
+                        .map(|arg| -> Result<Type, String> {
+                            let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
+                            deps.extend(dep);
+                            new_args.push(expr);
+                            Ok(type_)
+                        })
+                        .collect();
+                    let arguments = arguments_result?;
+                    let arguments_match =
+                        Type::arguments_match_parameters(&arguments, &has_more_args, &parameters);
+                    if !arguments_match {
+                        println!("{:?} {:?}", arguments, parameters);
+                        return Err("Type mismatch in function call".to_string());
+                    }
 
-                Ok((
-                    Expr::FunctionCall(Box::new(function), new_args),
-                    *returned,
-                    deps,
-                ))
-            } else {
-                Err("Type mismatch in function call".to_string())
+                    Ok((Expr::FunctionCall(Box::new(function), new_args), *ret, deps))
+                }
+                _ => Err("Type mismatch in function call".to_string()),
             }
         }
     }
 }
 
 fn check_type_annotation_types(
-    type_: TypeAnnotationUnchecked,
-    type_context: &mut TypeContext,
+    type_annotation: TypeAnnotationUnchecked,
+    mut type_context: &mut TypeContext,
 ) -> Result<Type, String> {
-    Ok(match type_ {
-        TypeAnnotationUnchecked::Number(unit_expr) => {
-            let type_ = match unit_expr {
-                Some(unit_expr) => {
-                    // _dep is ignored because it only gets used in the type context
-                    let (_expr, type_, _dep) = check_expr_types(unit_expr, type_context)?;
-                    Some(type_)
-                }
-                None => None,
-            };
-            println!("{:?}", type_);
-            let unit = match type_ {
-                Some(Type::Number(unit, Some(NumberConstant::Integer(1)))) => unit,
-                Some(Type::Number(unit, Some(NumberConstant::Float(f)))) if f == 1.0 => unit,
-                None => UnitSet::empty(),
-                _ => return Err("Type mismatch in number annotation".to_string()),
-            };
-            Type::Number(unit, None)
-        }
-        TypeAnnotationUnchecked::List(item_type) => {
-            let type_ = match item_type {
-                Some(unit_expr) => {
-                    // _dep is ignored because it only gets used in the type context
-                    let (_expr, type_, _dep) = check_expr_types(unit_expr, type_context)?;
-                    if let Type::Type(type_) = type_ {
-                        *type_
-                    } else {
-                        return Err("Type mismatch in list type annotation".to_string());
-                    }
-                }
-                None => Type::Any,
-            };
-            Type::List(Box::new(type_))
-        }
-        TypeAnnotationUnchecked::Custom(_) => unimplemented!(),
-    })
+    let fun = if let Some((_, Type::Type(fun, _), _)) =
+        type_context.get_variable(&type_annotation.name)
+    {
+        fun.clone()
+    } else {
+        return Err(format!("Type {} not found in scope", type_annotation.name));
+    };
+    type_context.get_variable("f");
+    let args = type_annotation
+        .generics
+        .into_iter()
+        .map(|type_annotation| check_expr_types(type_annotation, &mut type_context))
+        .collect::<Result<Vec<(Expr, Type, HashSet<String>)>, String>>()?;
+    let args = args
+        .into_iter()
+        .map(|(_, type_, _)| type_)
+        .collect::<Vec<Type>>();
+    fun(args)
 }
 
 fn handle_bin_op(

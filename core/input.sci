@@ -16,9 +16,7 @@ calculate_f = (f: num) => {
     }
 }
 
-f = (F: num[N]) => {
-    2N + F
-}
+f = (F: num[N]) => 2N + F
 
 F = f(100N)
 
@@ -26,7 +24,7 @@ out = calculate_f(100)
 
 print(out)
 
-let x = [1, 2]
+let x: list[num] = [1, 2]
 print(x[0], 2, 3, 2, 4)
 
 print(1)
@@ -38,10 +36,14 @@ fn f (a: num, args: list[num]) {
 let a = f(1, 2, 3)
 a = null
 
-force_2 = 2
+let a: any = 1
+a = false
+
+print(linspace(10, 100, 90))
 
 
-//struct Point[a, b] {
+
+//struct Point {
 //    x: num
 //    y: num
 //    
