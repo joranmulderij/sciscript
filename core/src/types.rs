@@ -75,16 +75,59 @@ pub struct Scope {
 #[derive(Debug, Clone)]
 pub enum Type {
     Number(UnitSet, Option<NumberConstant>),
-    Function(Vec<Type>, Box<Type>),
+    Function(Vec<Type>, Box<Type>, bool), // bool is for whether the function has a last "args" parameter
     Type(Box<Type>),
+    List(Box<Type>),
     Range,
     Bool,
     Void,
+    Any,
 }
 
 impl Type {
     pub fn number() -> Self {
         Self::Number(UnitSet::empty(), None)
+    }
+
+    pub fn can_be_assigned_to(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Number(unit1, _), Self::Number(unit2, _)) if unit1 == unit2 => true,
+            (
+                Self::Function(args1, ret1, has_last_args1),
+                Self::Function(args2, ret2, has_last_args2),
+            ) => {
+                let arguments_match =
+                    Self::arguments_match_parameters(args1, has_last_args1, args2);
+                let returns_match = ret1.can_be_assigned_to(ret2.as_ref());
+                let last_args_match = *has_last_args1 && !has_last_args2;
+                arguments_match && returns_match && last_args_match
+            }
+            (Self::Type(t1), Self::Type(t2)) => t1.can_be_assigned_to(t2),
+            (Self::List(t1), Self::List(t2)) => t1.can_be_assigned_to(t2),
+            (Self::Bool, Self::Bool) => true,
+            (Self::Void, Self::Void) => true,
+            (Self::Any, _) => true,
+            _ => false,
+        }
+    }
+
+    pub fn arguments_match_parameters(
+        arguments: &Vec<Type>,
+        has_more_args: &bool,
+        parameters: &Vec<Type>,
+    ) -> bool {
+        if arguments.len() < parameters.len() {
+            return false;
+        }
+        if !has_more_args && arguments.len() > parameters.len() {
+            return false;
+        }
+        for i in 0..parameters.len() {
+            if !arguments[i].can_be_assigned_to(&parameters[i]) {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -96,7 +139,6 @@ impl PartialEq for Type {
         }
     }
 }
-impl Eq for Type {}
 
 #[derive(Debug, Clone)]
 pub enum NumberConstant {

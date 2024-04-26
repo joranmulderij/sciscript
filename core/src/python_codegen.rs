@@ -10,7 +10,7 @@ pub fn generate_python_code(ast: Vec<Line>) -> String {
 }
 
 impl Expr {
-    /// Expression code, previous line code
+    /// previous line code, expression code
     fn to_python_code(&self) -> (String, String) {
         match self {
             Expr::Number(n) => ("".to_string(), n.to_string()),
@@ -18,6 +18,7 @@ impl Expr {
                 let code = expr.to_python_code();
                 (code.0, format!("-{}", code.1))
             }
+            Expr::Null => ("".to_string(), "None".to_string()),
             Expr::BinOp { lhs, op, rhs } => {
                 let (pl1, lhs) = lhs.to_python_code();
                 let (pl2, rhs) = rhs.to_python_code();
@@ -34,14 +35,27 @@ impl Expr {
                         Op::Divide => "/",
                         Op::Modulo => "%",
                         Op::Power => "**",
+                        Op::Equals => "==",
+                        Op::NotEquals => "!=",
                         Op::Range => unreachable!(),
+                        // Op::LessThan => "<",
                     },
                     rhs
                 );
                 (pl1 + &pl2, expr)
             }
+            Expr::List(items) => {
+                let mut pl = String::new();
+                let mut items_str = Vec::new();
+                for item in items {
+                    let (pl2, item) = item.to_python_code();
+                    pl.push_str(&pl2);
+                    items_str.push(item);
+                }
+                (pl, format!("[{}]", items_str.join(", ")))
+            }
             Expr::Variable(id) => ("".to_string(), id.clone()),
-            Expr::If(conditions, bodies, else_) => {
+            Expr::If(_conditions, _bodies, _else_) => {
                 // let mut pl = String::new();
                 // for (i, (condition, body)) in conditions.iter().zip(bodies.iter()).enumerate() {
                 //     if i == 0 {
@@ -112,8 +126,13 @@ impl Expr {
                 }
                 (pl1 + &pl2, format!("{}({})", fun, args.join(", ")))
             }
-            Expr::Lambda(parameters, block, deps) => {
+            Expr::Lambda(parameters, block, deps, has_more_args) => {
                 let mut pl = String::new();
+                let mut parameters = parameters.clone();
+                if *has_more_args {
+                    let last = parameters.last_mut().unwrap();
+                    *last = format!("*{}", last);
+                }
                 pl.push_str("def func(");
                 pl.push_str(&parameters.join(", "));
                 pl.push_str("):\n");
@@ -125,6 +144,11 @@ impl Expr {
                 pl.push_str("\n");
                 pl.push_str(&indent("return ".to_string() + &expr));
                 (pl, "func".to_string())
+            }
+            Expr::Index(expr, index) => {
+                let (pl1, expr) = expr.to_python_code();
+                let (pl2, index) = index.to_python_code();
+                (pl1 + &pl2, format!("{}[{}]", expr, index))
             }
         }
     }
@@ -158,7 +182,7 @@ impl Line {
         let (pl, line, expr) = match self {
             Line::Expr(expr) => {
                 let (pl, expr) = expr.to_python_code();
-                (pl, expr.clone(), expr)
+                (pl, "".to_string(), expr)
             }
             Line::Assign(id, expr, _) => {
                 let (pl, expr) = expr.to_python_code();

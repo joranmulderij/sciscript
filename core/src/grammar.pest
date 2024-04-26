@@ -2,41 +2,52 @@ entry = _{ SOI ~ lines ~ EOI }
 // Vec<LineNode>
 lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
 block =  { "{" ~ lines? ~ "}" }
-line  = _{ (unitdef_line | assignment_line | expr_line | comment) ~ comment? }
+line  = _{ (unitdef_line | function_line | assignment_line | expr_line | comment) ~ comment? }
 
 expr_line     =  { expr }
 expr          =  { for_statement | if_statement | (expr_ops+) }
 if_statement  =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
 for_statement =  { for ~ variable ~ in ~ expr_ops ~ block }
 expr_ops      =  { atom ~ (bin_op ~ atom)* }
-bin_op        = _{ add | subtract | multiply | divide | modulo | power | range }
-atom          = _{ prefixes? ~ primary ~ postfixes? }
+bin_op        = _{ add | subtract | multiply | divide | modulo | power | range | equals | not_equals }
+atom          = _{ prefixes? ~ primary ~ postfixes* }
 prefixes      = _{ unary_minus }
-postfixes     = _{ propget? }
+postfixes     = _{ propget | index | function_call }
 propget       =  { "." ~ variable }
+index         =  { "[" ~ expr ~ "]" }
+function_call =  { "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 primary       = _{ literal | "(" ~ expr ~ ")" }
 
-literal = _{ boolean | number | variable | block | lambda }
+literal = _{ keyword_literal | number | variable | block | lambda | list }
+
+list = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
 
 lambda    = { "(" ~ arguments ~ ")" ~ "=>" ~ expr }
 arguments = { (argument ~ ("," ~ argument)*)? }
-argument  = { variable ~ ":" ~ type }
+argument  = { variable ~ ":" ~ type_annotation }
 
-boolean = _{ true_ | false_ }
+keyword_literal = _{ true_ | false_ | null }
 
 number  = _{ float | integer }
 float   =  { ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 integer = @{ ASCII_DIGIT+ }
 
-type     = _{ num_type | variable }
-num_type =  { "num" ~ ("[" ~ expr_ops ~ "]")? }
+type_annotation = { num_type | list_type | variable }
+num_type        = { "num" ~ ("[" ~ expr_ops ~ "]")? }
+list_type       = { "list" ~ ("[" ~ expr_ops ~ "]")? }
 
-variable = @{ !"in" ~ !"for" ~ (ASCII_ALPHA | "_")+ }
+variable = @{
+    !(keyword ~ !(ASCII_ALPHA | DECIMAL_NUMBER | "_")) ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHA | DECIMAL_NUMBER | "_")*
+}
 
-assignment_line        = _{ const_assignment_line | let_assignment_line | normal_assignment_line }
-normal_assignment_line =  { variable ~ "=" ~ expr }
-let_assignment_line    =  { let ~ variable ~ "=" ~ expr }
-const_assignment_line  =  { const ~ variable ~ "=" ~ expr }
+assignment_line          = _{ const_assignment_line | let_assignment_line | normal_assignment_line }
+normal_assignment_line   =  { variable ~ no_type_annotation ~ "=" ~ expr }
+let_assignment_line      =  { let ~ variable ~ optional_type_annotation ~ "=" ~ expr }
+const_assignment_line    =  { const ~ variable ~ optional_type_annotation ~ "=" ~ expr }
+optional_type_annotation =  { (":" ~ type_annotation)? }
+no_type_annotation       =  { "" }
+
+function_line = { "fn" ~ variable ~ "(" ~ arguments ~ ")" ~ block }
 
 unitdef_line = { unit ~ variable }
 
@@ -52,8 +63,11 @@ divide      =  { "/" }
 power       =  { "^" }
 modulo      =  { "%" }
 range       =  { ".." }
+equals      =  { "==" }
+not_equals  =  { "!=" }
 true_       =  { "true" }
 false_      =  { "false" }
+null        =  { "null" }
 if          = _{ "if" }
 else        = _{ "else" }
 for         = _{ "for" }
@@ -61,5 +75,7 @@ in          = _{ "in" }
 unit        = _{ "unit" }
 const       = _{ "const" }
 let         = _{ "let" }
+
+keyword = _{ if | else | for | unit | const | let | true_ | false_ | null }
 
 WHITESPACE = _{ " " }

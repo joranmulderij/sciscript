@@ -9,7 +9,12 @@ use crate::types::NumberConstant;
 #[derive(Debug)]
 pub enum LineUnchecked {
     Expr(ExprUnchecked),
-    Assign(String, ExprUnchecked, AssignmentType),
+    Assign(
+        String,
+        Option<TypeAnnotationUnchecked>,
+        ExprUnchecked,
+        AssignmentType,
+    ),
     UnitDef(String),
 }
 
@@ -39,13 +44,18 @@ pub enum ExprUnchecked {
     ),
     For(String, Box<ExprUnchecked>, Vec<LineUnchecked>),
     Boolean(bool),
+    Null,
     Block(Vec<LineUnchecked>),
     Lambda(Vec<(String, TypeAnnotationUnchecked)>, Box<ExprUnchecked>),
+    List(Vec<ExprUnchecked>),
+    Index(Box<ExprUnchecked>, Box<ExprUnchecked>),
+    FunctionCall(Box<ExprUnchecked>, Vec<ExprUnchecked>),
 }
 
 #[derive(Debug)]
 pub enum TypeAnnotationUnchecked {
     Number(Option<ExprUnchecked>),
+    List(Option<ExprUnchecked>),
     Custom(String),
 }
 
@@ -62,9 +72,12 @@ pub enum Expr {
     If(Vec<Expr>, Vec<Vec<Line>>, Option<Vec<Line>>),
     For(String, Box<Expr>, Vec<Line>),
     Boolean(bool),
+    Null,
     Block(Vec<Line>),
     FunctionCall(Box<Expr>, Vec<Expr>),
-    Lambda(Vec<String>, Box<Expr>, HashSet<String>),
+    Lambda(Vec<String>, Box<Expr>, HashSet<String>, bool),
+    List(Vec<Expr>),
+    Index(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]
@@ -76,6 +89,8 @@ pub enum Op {
     Modulo,
     Power,
     Range,
+    Equals,
+    NotEquals,
 }
 
 #[derive(Debug)]

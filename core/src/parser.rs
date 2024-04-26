@@ -2,7 +2,7 @@ use pest::iterators::Pair;
 use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
 
-use crate::ast::{ExprUnchecked, LineUnchecked, Op, TypeAnnotationUnchecked};
+use crate::ast::{AssignmentType, ExprUnchecked, LineUnchecked, Op, TypeAnnotationUnchecked};
 use crate::types::NumberConstant;
 
 #[derive(pest_derive::Parser)]
@@ -11,7 +11,6 @@ struct MyParser;
 
 pub fn parse(input: &str) -> Result<Vec<LineUnchecked>, pest::error::Error<Rule>> {
     let pairs = MyParser::parse(Rule::entry, input)?;
-    // println!("{:?}", pairs);
     Ok(build_line_ast(pairs))
 }
 
@@ -30,6 +29,12 @@ fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
             | Rule::let_assignment_line => {
                 let mut inner = pair.into_inner();
                 let var = inner.next().unwrap().as_str().to_string();
+                let optional_type_annotation = inner.next().unwrap();
+                println!("{:?}", optional_type_annotation.as_rule());
+                let type_annotation = match optional_type_annotation.into_inner().next() {
+                    Some(type_annotation) => Some(parse_type_annotation(type_annotation)),
+                    None => None,
+                };
                 let expr = inner.next().unwrap();
                 let assignment_type = match rule {
                     Rule::normal_assignment_line => crate::ast::AssignmentType::Normal,
@@ -37,12 +42,34 @@ fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
                     Rule::const_assignment_line => crate::ast::AssignmentType::Const,
                     _ => unreachable!(),
                 };
-                let node = LineUnchecked::Assign(var, build_expr_ast(expr), assignment_type);
+                let node = LineUnchecked::Assign(
+                    var,
+                    type_annotation,
+                    build_expr_ast(expr),
+                    assignment_type,
+                );
                 lines.push(node);
             }
             Rule::unitdef_line => {
                 let unit = pair.into_inner().next().unwrap().as_str().to_string();
                 let node = LineUnchecked::UnitDef(unit);
+                lines.push(node);
+            }
+            Rule::function_line => {
+                let mut inner = pair.into_inner();
+                let name = inner.next().unwrap().as_str().to_string();
+                let args = inner.next().unwrap();
+                let block = inner.next().unwrap();
+                let args = parse_args(args);
+                let node = LineUnchecked::Assign(
+                    name,
+                    None,
+                    ExprUnchecked::Lambda(
+                        args,
+                        Box::new(ExprUnchecked::Block(build_line_ast(block.into_inner()))),
+                    ),
+                    AssignmentType::Let,
+                );
                 lines.push(node);
             }
             Rule::EOI => {}
@@ -63,14 +90,16 @@ lazy_static::lazy_static! {
         // Precedence is defined lowest to highest
         PrattParser::new()
             .op(Op::infix(Rule::range, Left))
+            .op(Op::infix(Rule::equals, Left) | Op::infix(Rule::not_equals, Left))
             .op(Op::infix(Rule::add, Left) | Op::infix(Rule::subtract, Left))
             .op(Op::infix(Rule::multiply, Left) | Op::infix(Rule::divide, Left) | Op::infix(Rule::modulo, Left))
             .op(Op::infix(Rule::power, Left))
-            .op(Op::prefix(Rule::unary_minus) | Op::postfix(Rule::propget))
+            .op(Op::prefix(Rule::unary_minus) | Op::postfix(Rule::propget) | Op::postfix(Rule::index) | Op::postfix(Rule::function_call))
     };
 }
 
 fn build_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
+    assert!(pair.as_rule() == Rule::expr);
     let mut pairs: Vec<Pair<Rule>> = pair.into_inner().collect();
     let rule = &pairs[0].as_rule();
     match rule {
@@ -137,6 +166,7 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             Rule::variable => ExprUnchecked::Variable(primary.as_str().to_string()),
             Rule::true_ => ExprUnchecked::Boolean(true),
             Rule::false_ => ExprUnchecked::Boolean(false),
+            Rule::null => ExprUnchecked::Null,
             Rule::integer => {
                 let number = primary.as_str();
                 ExprUnchecked::Number(NumberConstant::Integer(number.parse::<i64>().unwrap()))
@@ -154,30 +184,13 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 let mut inner = primary.into_inner();
                 let args = inner.next().unwrap();
                 let expr = inner.next().unwrap();
-                let args = args
-                    .into_inner()
-                    .map(|arg| {
-                        let mut inner = arg.into_inner();
-                        let name = inner.next().unwrap().as_str().to_string();
-                        let type_ = inner.next().unwrap();
-                        let type_ = match type_.as_rule() {
-                            Rule::num_type => {
-                                let unit = type_.into_inner().next();
-                                let unit = match unit {
-                                    Some(unit) => Some(build_op_expr_ast(unit)),
-                                    None => None,
-                                };
-                                TypeAnnotationUnchecked::Number(unit)
-                            }
-                            Rule::variable => {
-                                TypeAnnotationUnchecked::Custom(type_.as_str().to_string())
-                            }
-                            _ => unreachable!(),
-                        };
-                        (name, type_)
-                    })
-                    .collect();
+                let args = parse_args(args);
                 ExprUnchecked::Lambda(args, Box::new(build_expr_ast(expr)))
+            }
+            Rule::list => {
+                let inner = primary.into_inner();
+                let items = inner.map(build_expr_ast).collect();
+                ExprUnchecked::List(items)
             }
             rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
         })
@@ -191,6 +204,8 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 Rule::modulo => Op::Modulo,
                 Rule::range => Op::Range,
                 Rule::power => Op::Power,
+                Rule::equals => Op::Equals,
+                Rule::not_equals => Op::NotEquals,
                 rule => unreachable!("Expr::parse expected infix operation, found {:?}", rule),
             };
             ExprUnchecked::BinOp {
@@ -215,10 +230,55 @@ pub fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 Box::new(lhs),
                 op.into_inner().next().unwrap().as_str().to_string(),
             ),
+            Rule::index => {
+                let index = op.into_inner().next().unwrap();
+                ExprUnchecked::Index(Box::new(lhs), Box::new(build_expr_ast(index)))
+            }
+            Rule::function_call => {
+                let args = op.into_inner().map(build_expr_ast).collect();
+                ExprUnchecked::FunctionCall(Box::new(lhs), args)
+            }
             _ => unreachable!(
                 "Expr::parse expected postfix operation, found {:?}",
                 op.as_rule()
             ),
         })
         .parse(pair.into_inner())
+}
+
+fn parse_args(pair: Pair<Rule>) -> Vec<(String, TypeAnnotationUnchecked)> {
+    pair.into_inner()
+        .map(|arg| {
+            let mut inner = arg.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let type_annotation = inner.next().unwrap();
+            let type_ = parse_type_annotation(type_annotation);
+            (name, type_)
+        })
+        .collect()
+}
+
+fn parse_type_annotation(type_annotation: Pair<'_, Rule>) -> TypeAnnotationUnchecked {
+    assert!(type_annotation.as_rule() == Rule::type_annotation);
+    let type_annotation = type_annotation.into_inner().next().unwrap();
+    match type_annotation.as_rule() {
+        Rule::num_type => {
+            let unit = type_annotation.into_inner().next();
+            let unit = match unit {
+                Some(unit) => Some(build_op_expr_ast(unit)),
+                None => None,
+            };
+            TypeAnnotationUnchecked::Number(unit)
+        }
+        Rule::list_type => {
+            let item_type = type_annotation.into_inner().next();
+            let item_type = match item_type {
+                Some(item_type) => Some(build_op_expr_ast(item_type)),
+                None => None,
+            };
+            TypeAnnotationUnchecked::List(item_type)
+        }
+        Rule::variable => TypeAnnotationUnchecked::Custom(type_annotation.as_str().to_string()),
+        _ => unreachable!(),
+    }
 }
