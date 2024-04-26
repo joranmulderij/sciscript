@@ -1,13 +1,12 @@
 use crate::{
-    types::{FunctionProfile, NumberConstant, Type},
+    types::{FunctionProfile, NumberConstant, Type, TypeProfile},
     units::UnitSet,
 };
 
 pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
     let num_type = Type::Function(FunctionProfile {
-        parameters: vec![Type::number()],
-        ret: Box::new(Type::number()),
-        has_more_args: false,
+        parameters: vec![("value".to_string(), Type::number(), true)],
+        return_type: Box::new(Type::number()),
     });
     let variables = vec![
         ("sin".to_string(), "math.sin".to_string(), num_type.clone()),
@@ -15,43 +14,48 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
         ("tan".to_string(), "math.tan".to_string(), num_type.clone()),
         (
             "print".to_string(),
-            "print".to_string(),
-            // Type::Function(vec![], Box::new(Type::Void), true),
+            "std.my_print".to_string(),
             Type::Function(FunctionProfile {
-                parameters: vec![],
-                ret: Box::new(Type::Any),
-                has_more_args: true,
+                parameters: vec![("value".to_string(), Type::Any, true)],
+                return_type: Box::new(Type::Any),
             }),
         ),
         (
             "num".to_string(),
             "std.num".to_string(),
             Type::Type(
-                number,
+                TypeProfile::Function(number),
                 Some(FunctionProfile {
-                    parameters: vec![Type::Any],
-                    ret: Box::new(Type::Number(UnitSet::empty(), None)),
-                    has_more_args: false,
+                    parameters: vec![("value".to_string(), Type::Any, true)],
+                    return_type: Box::new(Type::Number(UnitSet::empty(), None)),
                 }),
             ),
         ),
         (
             "any".to_string(),
             "std.any".to_string(),
-            Type::Type(|_| Ok(Type::Any), None),
+            Type::Type(TypeProfile::Type(Box::new(Type::Any)), None),
+        ),
+        (
+            "bool".to_string(),
+            "std.bool".to_string(),
+            Type::Type(TypeProfile::Type(Box::new(Type::Bool)), None),
         ),
         (
             "list".to_string(),
             "std.list".to_string(),
-            Type::Type(list, None),
+            Type::Type(TypeProfile::Function(list), None),
         ),
         (
             "linspace".to_string(),
             "std.linspace".to_string(),
             Type::Function(FunctionProfile {
-                parameters: vec![Type::number(), Type::number(), Type::number()],
-                ret: Box::new(Type::List(Box::new(Type::number()))),
-                has_more_args: false,
+                parameters: vec![
+                    ("start".to_string(), Type::number(), true),
+                    ("stop".to_string(), Type::number(), true),
+                    ("n".to_string(), Type::number(), true),
+                ],
+                return_type: Box::new(Type::List(Box::new(Type::number()))),
             }),
         ),
     ];
@@ -88,7 +92,10 @@ fn list(mut args: Vec<Type>) -> Result<Type, String> {
     }
     let arg = args.remove(0);
     let type_ = match arg {
-        Type::Type(fun, _) => fun(vec![])?,
+        Type::Type(profile, _) => match profile {
+            TypeProfile::Function(fun) => fun(vec![])?,
+            TypeProfile::Type(t) => *t,
+        },
         _ => return Err("list[] takes a type as argument".to_string()),
     };
     Ok(Type::List(Box::new(type_)))

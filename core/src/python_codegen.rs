@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::ast::{Expr, Line, Op};
 
 pub fn generate_python_code(ast: Vec<Line>) -> String {
@@ -118,23 +120,30 @@ impl Expr {
             Expr::FunctionCall(fun, params) => {
                 let (pl1, fun) = fun.to_python_code();
                 let mut pl2 = String::new();
-                let mut args = Vec::new();
-                for param in params {
-                    let (pl, param) = param.to_python_code();
+                let mut args = HashMap::new();
+                for (name, expr) in params {
+                    let (pl, expr) = expr.to_python_code();
                     pl2.push_str(&pl);
-                    args.push(param);
+                    args.insert(name.clone(), expr);
                 }
-                (pl1 + &pl2, format!("{}({})", fun, args.join(", ")))
+                (
+                    pl1 + &pl2,
+                    format!(
+                        "{}({})",
+                        fun,
+                        args.iter()
+                            .map(|(k, v)| format!("{}={}", k, v))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                )
             }
-            Expr::Lambda(parameters, block, deps, has_more_args) => {
+            Expr::Lambda(parameters, block, deps) => {
                 let mut pl = String::new();
-                let mut parameters = parameters.clone();
-                if *has_more_args {
-                    let last = parameters.last_mut().unwrap();
-                    *last = format!("*{}", last);
-                }
+                let (pl_, parameters) = parameters_to_python_code(&parameters);
+                pl.push_str(&pl_);
                 pl.push_str("def func(");
-                pl.push_str(&parameters.join(", "));
+                pl.push_str(&parameters);
                 pl.push_str("):\n");
                 for dep in deps {
                     pl.push_str(&format!("    global {}\n", dep));
@@ -149,6 +158,27 @@ impl Expr {
                 let (pl1, expr) = expr.to_python_code();
                 let (pl2, index) = index.to_python_code();
                 (pl1 + &pl2, format!("{}[{}]", expr, index))
+            }
+            Expr::Struct(fields) => {
+                let (pl, parameters) = parameters_to_python_code(fields);
+                let pl = format!(
+                    "{}class Struct:
+    def __init__(self, {}):
+{}
+",
+                    pl,
+                    parameters,
+                    fields
+                        .iter()
+                        .map(|(field, _)| format!("        self.{} = {}", field, field))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                );
+                (pl, "Struct".to_string())
+            }
+            Expr::GetProperty(expr, field) => {
+                let (pl, expr) = expr.to_python_code();
+                (pl, format!("{}.{}", expr, field))
             }
         }
     }
@@ -195,4 +225,22 @@ impl Line {
             (pl + "\n" + &line, expr)
         }
     }
+}
+
+fn parameters_to_python_code(parameters: &Vec<(String, Option<Expr>)>) -> (String, String) {
+    let mut pl = String::new();
+    let parameters = parameters
+        .into_iter()
+        .map(|(id, default_value)| {
+            if let Some(default_value) = default_value {
+                let (pl_, default_value) = default_value.to_python_code();
+                pl.push_str(&pl_);
+                format!("{}={}", id, default_value)
+            } else {
+                id.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    (pl, parameters)
 }

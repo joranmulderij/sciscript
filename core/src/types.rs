@@ -74,24 +74,27 @@ pub struct Scope {
 
 #[derive(Debug, Clone)]
 pub struct FunctionProfile {
-    pub parameters: Vec<Type>,
-    pub ret: Box<Type>,
-    pub has_more_args: bool,
+    pub parameters: Vec<(String, Type, bool)>,
+    pub return_type: Box<Type>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeProfile {
+    Function(fn(Vec<Type>) -> Result<Type, String>),
+    Type(Box<Type>),
 }
 
 #[derive(Debug, Clone)]
 pub enum Type {
     Number(UnitSet, Option<NumberConstant>),
     Function(FunctionProfile),
-    Type(
-        fn(Vec<Type>) -> Result<Type, String>,
-        Option<FunctionProfile>,
-    ),
+    Type(TypeProfile, Option<FunctionProfile>),
     List(Box<Type>),
     Range,
     Bool,
     Void,
     Any,
+    Struct(Vec<(String, Type, bool)>),
 }
 
 impl Type {
@@ -104,48 +107,36 @@ impl Type {
             (Self::Number(unit1, _), Self::Number(unit2, _)) if unit1 == unit2 => true,
             (
                 Self::Function(FunctionProfile {
-                    parameters: args1,
-                    ret: ret1,
-                    has_more_args: has_more_args1,
+                    parameters: parameters1,
+                    return_type: ret1,
                 }),
                 Self::Function(FunctionProfile {
-                    parameters: args2,
-                    ret: ret2,
-                    has_more_args: has_more_args2,
+                    parameters: parameters2,
+                    return_type: ret2,
                 }),
             ) => {
-                let arguments_match =
-                    Self::arguments_match_parameters(args1, has_more_args1, args2);
-                let returns_match = ret1.can_be_assigned_to(ret2.as_ref());
-                let last_args_match = *has_more_args1 && !has_more_args2;
-                arguments_match && returns_match && last_args_match
+                // let arguments_match =
+                //     Self::arguments_match_parameters(req_args1, opt_args1, req_args2, opt_args2);
+                // let returns_match = ret1.can_be_assigned_to(ret2.as_ref());
+                // let last_args_match = *has_more_args1 && !has_more_args2;
+                // arguments_match && returns_match && last_args_match
+                todo!()
             }
-            (Self::Type(t1, _profile1), Self::Type(_t2, _profile2)) => todo!(),
+            (Self::Type(_t1, _profile1), Self::Type(_t2, _profile2)) => todo!(),
             (Self::List(t1), Self::List(t2)) => t1.can_be_assigned_to(t2),
             (Self::Bool, Self::Bool) => true,
             (Self::Void, Self::Void) => true,
             (Self::Any, _) => true,
+            (Self::Struct(fields1), Self::Struct(fields2)) => {
+                fields1.len() == fields2.len()
+                    && fields1.iter().zip(fields2.iter()).all(
+                        |((name1, type1, _), (name2, type2, _))| {
+                            name1 == name2 && type1.can_be_assigned_to(type2)
+                        },
+                    )
+            }
             _ => false,
         }
-    }
-
-    pub fn arguments_match_parameters(
-        arguments: &Vec<Type>,
-        has_more_args: &bool,
-        parameters: &Vec<Type>,
-    ) -> bool {
-        if arguments.len() < parameters.len() {
-            return false;
-        }
-        if !has_more_args && arguments.len() > parameters.len() {
-            return false;
-        }
-        for i in 0..parameters.len() {
-            if !parameters[i].can_be_assigned_to(&arguments[i]) {
-                return false;
-            }
-        }
-        true
     }
 }
 

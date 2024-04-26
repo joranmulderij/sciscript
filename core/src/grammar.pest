@@ -1,30 +1,34 @@
 entry = _{ SOI ~ lines ~ EOI }
-// Vec<LineNode>
+
 lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
 block =  { "{" ~ lines? ~ "}" }
-line  = _{ (unitdef_line | function_line | assignment_line | expr_line | comment) ~ comment? }
+line  = _{ (unitdef_line | function_line | struct_line | assignment_line | expr_line | comment) ~ comment? }
 
-expr_line     =  { expr }
-expr          =  { for_statement | if_statement | (expr_ops+) }
-if_statement  =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
-for_statement =  { for ~ variable ~ in ~ expr_ops ~ block }
-expr_ops      =  { atom ~ (bin_op ~ atom)* }
-bin_op        = _{ add | subtract | multiply | divide | modulo | power | range | equals | not_equals }
-atom          = _{ prefixes? ~ primary ~ postfixes* }
-prefixes      = _{ unary_minus }
-postfixes     = _{ propget | index | function_call }
-propget       =  { "." ~ variable }
-index         =  { "[" ~ expr ~ "]" }
-function_call =  { "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
-primary       = _{ literal | "(" ~ expr ~ ")" }
+expr_line      =  { expr }
+expr           =  { for_statement | if_statement | (expr_ops+) }
+if_statement   =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
+for_statement  =  { for ~ variable ~ in ~ expr_ops ~ block }
+expr_ops       =  { atom ~ (bin_op ~ atom)* }
+bin_op         = _{ add | subtract | multiply | divide | modulo | power | range | equals | not_equals }
+atom           = _{ prefixes? ~ primary ~ postfixes* }
+prefixes       = _{ unary_minus }
+postfixes      = _{ propget | index | function_call }
+propget        =  { "." ~ variable }
+index          =  { "[" ~ expr ~ "]" }
+function_call  =  { "(" ~ (argument ~ ("," ~ argument)*)? ~ ")" }
+argument       = _{ named_argument | expr }
+named_argument =  { variable ~ "=" ~ expr }
+primary        = _{ literal | "(" ~ expr ~ ")" }
 
 literal = _{ keyword_literal | number | variable | block | lambda | list }
 
 list = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
 
-lambda    = { "(" ~ arguments ~ ")" ~ "=>" ~ expr }
-arguments = { (argument ~ ("," ~ argument)*)? }
-argument  = { variable ~ ":" ~ type_annotation }
+lambda             =  { "(" ~ parameters ~ ")" ~ "=>" ~ expr }
+parameters         =  { (parameter ~ ("," ~ parameter)*)? }
+parameter          = _{ optional_parameter | required_parameter }
+required_parameter =  { variable ~ ":" ~ type_annotation }
+optional_parameter =  { variable ~ ":" ~ type_annotation ~ "=" ~ expr }
 
 keyword_literal = _{ true_ | false_ | null }
 
@@ -45,7 +49,11 @@ const_assignment_line    =  { const ~ variable ~ optional_type_annotation ~ "=" 
 optional_type_annotation =  { (":" ~ type_annotation)? }
 no_type_annotation       =  { "" }
 
-function_line = { "fn" ~ variable ~ "(" ~ arguments ~ ")" ~ block }
+function_line = { "fn" ~ variable ~ "(" ~ parameters ~ ")" ~ block }
+
+struct_line          = { struct ~ variable ~ struct_block }
+struct_block         = { "{" ~ NEWLINE* ~ struct_property_line ~ (NEWLINE* ~ struct_property_line)* ~ NEWLINE* ~ "}" }
+struct_property_line = { variable ~ ":" ~ type_annotation ~ ("=" ~ expr)? }
 
 unitdef_line = { unit ~ variable }
 
@@ -73,7 +81,8 @@ in          = _{ "in" }
 unit        = _{ "unit" }
 const       = _{ "const" }
 let         = _{ "let" }
+struct      = _{ "struct" }
 
-keyword = _{ if | else | for | unit | const | let | true_ | false_ | null }
+keyword = _{ if | else | for | unit | const | let | true_ | false_ | null | struct }
 
 WHITESPACE = _{ " " }

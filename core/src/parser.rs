@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use pest::iterators::Pair;
 use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
@@ -68,6 +70,33 @@ fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
                         args,
                         Box::new(ExprUnchecked::Block(build_line_ast(block.into_inner()))),
                     ),
+                    AssignmentType::Let,
+                );
+                lines.push(node);
+            }
+            Rule::struct_line => {
+                let mut inner = pair.into_inner();
+                let name = inner.next().unwrap().as_str().to_string();
+                let block = inner.next().unwrap();
+                let fields = block
+                    .into_inner()
+                    .map(|line| {
+                        let mut inner = line.into_inner();
+                        let name = inner.next().unwrap().as_str().to_string();
+                        let type_annotation = inner.next().unwrap();
+                        let type_annotation = parse_type_annotation(type_annotation);
+                        let default_value = inner.next();
+                        let default_value = match default_value {
+                            Some(default_value) => Some(build_expr_ast(default_value)),
+                            None => None,
+                        };
+                        (name, type_annotation, default_value)
+                    })
+                    .collect();
+                let node = LineUnchecked::Assign(
+                    name,
+                    None,
+                    ExprUnchecked::Struct(fields),
                     AssignmentType::Let,
                 );
                 lines.push(node);
@@ -182,9 +211,9 @@ fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             }
             Rule::lambda => {
                 let mut inner = primary.into_inner();
-                let args = inner.next().unwrap();
+                let arguments = inner.next().unwrap();
                 let expr = inner.next().unwrap();
-                let args = parse_args(args);
+                let args = parse_args(arguments);
                 ExprUnchecked::Lambda(args, Box::new(build_expr_ast(expr)))
             }
             Rule::list => {
@@ -235,8 +264,22 @@ fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 ExprUnchecked::Index(Box::new(lhs), Box::new(build_expr_ast(index)))
             }
             Rule::function_call => {
-                let args = op.into_inner().map(build_expr_ast).collect();
-                ExprUnchecked::FunctionCall(Box::new(lhs), args)
+                let mut positional_args = Vec::new();
+                let mut named_args = HashMap::new();
+                for arg in op.into_inner() {
+                    match arg.as_rule() {
+                        Rule::expr => positional_args.push(build_expr_ast(arg)),
+                        Rule::named_argument => {
+                            let mut inner = arg.into_inner();
+                            let name = inner.next().unwrap().as_str().to_string();
+                            let expr = inner.next().unwrap();
+                            named_args.insert(name, build_expr_ast(expr));
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                // let args = op.into_inner().map(build_expr_ast).collect();
+                ExprUnchecked::FunctionCall(Box::new(lhs), positional_args, named_args)
             }
             _ => unreachable!(
                 "Expr::parse expected postfix operation, found {:?}",
@@ -246,14 +289,19 @@ fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
         .parse(pair.into_inner())
 }
 
-fn parse_args(pair: Pair<Rule>) -> Vec<(String, TypeAnnotationUnchecked)> {
+fn parse_args(pair: Pair<Rule>) -> Vec<(String, TypeAnnotationUnchecked, Option<ExprUnchecked>)> {
     pair.into_inner()
         .map(|arg| {
             let mut inner = arg.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
             let type_annotation = inner.next().unwrap();
             let type_ = parse_type_annotation(type_annotation);
-            (name, type_)
+            let default_value = inner.next();
+            let default_value = match default_value {
+                Some(default_value) => Some(build_expr_ast(default_value)),
+                None => None,
+            };
+            (name, type_, default_value)
         })
         .collect()
 }

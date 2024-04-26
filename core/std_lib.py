@@ -13,13 +13,10 @@ def num(s):
     else:
         return float(s)
     
-def my_print(*args):
-    print(*args)
-    if len(args) >= 1:
-        return args[0]
-    else:
-        return None
+def my_print(value):
+    print(value)
+    return value
     
-def linspace(start, stop, num):
-    step = (stop - start) / num
-    return [start + i * step for i in range(num)]
+def linspace(start, stop, n):
+    step = (stop - start) / n
+    return [start + i * step for i in range(n)]

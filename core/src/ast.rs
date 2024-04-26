@@ -2,7 +2,7 @@
 //     fn to_python(&self) -> String;
 // }
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::types::NumberConstant;
 
@@ -46,10 +46,18 @@ pub enum ExprUnchecked {
     Boolean(bool),
     Null,
     Block(Vec<LineUnchecked>),
-    Lambda(Vec<(String, TypeAnnotationUnchecked)>, Box<ExprUnchecked>),
+    Lambda(
+        Vec<(String, TypeAnnotationUnchecked, Option<ExprUnchecked>)>,
+        Box<ExprUnchecked>,
+    ),
     List(Vec<ExprUnchecked>),
     Index(Box<ExprUnchecked>, Box<ExprUnchecked>),
-    FunctionCall(Box<ExprUnchecked>, Vec<ExprUnchecked>),
+    FunctionCall(
+        Box<ExprUnchecked>,
+        Vec<ExprUnchecked>,
+        HashMap<String, ExprUnchecked>,
+    ),
+    Struct(Vec<(String, TypeAnnotationUnchecked, Option<ExprUnchecked>)>),
 }
 
 #[derive(Debug)]
@@ -73,10 +81,12 @@ pub enum Expr {
     Boolean(bool),
     Null,
     Block(Vec<Line>),
-    FunctionCall(Box<Expr>, Vec<Expr>),
-    Lambda(Vec<String>, Box<Expr>, HashSet<String>, bool),
+    FunctionCall(Box<Expr>, Vec<(String, Expr)>),
+    Lambda(Vec<(String, Option<Expr>)>, Box<Expr>, HashSet<String>),
     List(Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
+    Struct(Vec<(String, Option<Expr>)>),
+    GetProperty(Box<Expr>, String),
 }
 
 #[derive(Debug)]

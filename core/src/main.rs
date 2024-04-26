@@ -11,7 +11,7 @@ use std::io;
 use crate::{parser::parse, type_checking::check_types, types::TypeContext};
 
 fn main() -> io::Result<()> {
-    let file = std::fs::read_to_string("input.sci")?;
+    let file = std::fs::read_to_string("fem.sci")?;
     let ast = match parse(&file) {
         Ok(ast) => ast,
         Err(e) => {

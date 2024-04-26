@@ -1,8 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, TypeAnnotationUnchecked},
-    types::{FunctionProfile, NumberConstant, Type, TypeContext},
+    types::{FunctionProfile, NumberConstant, Type, TypeContext, TypeProfile},
     units::{Unit, UnitSet},
 };
 
@@ -114,18 +114,20 @@ fn check_expr_types(
                 }
                 (
                     Type::Function(FunctionProfile {
-                        parameters: args,
-                        ret,
-                        has_more_args,
+                        parameters,
+                        return_type: ret,
                     }),
                     param,
                 ) => {
-                    if !Type::arguments_match_parameters(&args, &has_more_args, &vec![param]) {
-                        return Err("Type mismatch in sequencial expression".to_string());
-                    }
+                    let names = arguments_match_parameters(
+                        &vec![param.clone()],
+                        &HashMap::new(),
+                        &parameters,
+                    )?;
+                    let args = names.into_iter().zip(vec![expr2]).collect::<Vec<_>>();
                     let mut deps = dep1;
                     deps.extend(dep2);
-                    let expr = Expr::FunctionCall(Box::new(expr1), vec![expr2]);
+                    let expr = Expr::FunctionCall(Box::new(expr1), args);
                     Ok((expr, *ret.clone(), deps))
                 }
                 _ => Err("Type mismatch in sequencial expression".to_string()),
@@ -213,51 +215,64 @@ fn check_expr_types(
             Ok((expr, type_, deps))
         }
         ExprUnchecked::Lambda(parameters, block) => {
-            let mut param_types: Vec<Type> = Vec::new();
-            let mut param_names: Vec<String> = Vec::new();
-            let last_parameter_name = match &parameters.last() {
-                Some((name, _)) => Some(name.clone()),
-                None => None,
-            };
             type_context.push_scope();
-            for (name, type_) in parameters {
-                let type_ = check_type_annotation_types(type_, type_context)?;
-                let name = type_context.insert_variable(name, type_.clone(), true);
-                param_types.push(type_);
-                param_names.push(name);
-            }
-
-            let has_more_args = if last_parameter_name == Some("args".to_string())
-                && param_types.last() == Some(&Type::List(Box::new(Type::Any)))
-            {
-                param_types.pop();
-                true
-            } else {
-                false
-            };
+            let parameters: Vec<(String, Type, Option<Expr>)> = parameters
+                .into_iter()
+                .map(|(name, type_, default_value)| {
+                    let type_ = check_type_annotation_types(type_, &mut type_context)?;
+                    let id = type_context.insert_variable(name.clone(), type_.clone(), false);
+                    let default_value = match default_value {
+                        Some(default_value) => {
+                            let (expr, default_value_type, dep) =
+                                check_expr_types(default_value, &mut type_context)?;
+                            if !type_.can_be_assigned_to(&default_value_type) {
+                                return Err("Type mismatch in lambda parameter".to_string());
+                            }
+                            Some(expr)
+                        }
+                        None => None,
+                    };
+                    Ok((id, type_, default_value))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
             let (block, return_type, deps) = check_expr_types(*block, &mut type_context)?;
             type_context.pop_scope();
             let type_ = Type::Function(FunctionProfile {
-                parameters: param_types,
-                ret: Box::new(return_type),
-                has_more_args,
+                parameters: parameters
+                    .iter()
+                    .map(|(name, type_, default)| (name.clone(), type_.clone(), default.is_some()))
+                    .collect(),
+                return_type: Box::new(return_type),
             });
             let deps: HashSet<String> = deps
                 .iter()
-                .filter(|x| !param_names.contains(x))
+                .filter(|x| !parameters.iter().any(|(name, _, _)| *x == name))
                 .map(|x| x.clone())
                 .collect();
-            let expr = Expr::Lambda(param_names, Box::new(block), deps.clone(), has_more_args);
+            let expr = Expr::Lambda(
+                parameters
+                    .into_iter()
+                    .map(|(name, _, default)| (name.clone(), default))
+                    .collect(),
+                Box::new(block),
+                deps.clone(),
+            );
             Ok((expr, type_, deps))
         }
         ExprUnchecked::GetProperty(_expr, _property) => {
-            // let (expr, type_, dep) = check_expr_types(*expr, &mut type_context)?;
-            // let type_ = match type_ {
-            //     Type::Number(_, _) => Type::Number(UnitSet::empty(), None),
-            //     _ => return Err("Type mismatch in get property".to_string()),
-            // };
-            // Ok((Expr::GetProperty(Box::new(expr), property), type_, dep))
-            todo!()
+            let (expr, type_, dep) = check_expr_types(*_expr, &mut type_context)?;
+            let type_ = match type_ {
+                Type::Struct(fields) => {
+                    let field = fields.iter().find(|(name, _, _)| name == &_property);
+                    if let Some((_name, type_, _)) = field {
+                        type_.clone()
+                    } else {
+                        return Err("Property not found in struct".to_string());
+                    }
+                }
+                _ => return Err("Type mismatch in get property".to_string()),
+            };
+            Ok((Expr::GetProperty(Box::new(expr), _property), type_, dep))
         }
         ExprUnchecked::List(items) => {
             let mut new_items: Vec<Expr> = Vec::new();
@@ -292,46 +307,91 @@ fn check_expr_types(
             deps.extend(dep_index);
             Ok((Expr::Index(Box::new(expr), Box::new(index)), type_, deps))
         }
-        ExprUnchecked::FunctionCall(function, mut arguments) => {
+        ExprUnchecked::FunctionCall(function, positional_arguments, named_arguments) => {
             let mut deps: HashSet<String> = HashSet::new();
             let (function, type_, dep1) = check_expr_types(*function, &mut type_context)?;
             deps.extend(dep1);
             match type_ {
                 Type::Function(FunctionProfile {
                     parameters,
-                    ret,
-                    has_more_args,
+                    return_type: ret,
                 })
                 | Type::Type(
                     _,
                     Some(FunctionProfile {
                         parameters,
-                        ret,
-                        has_more_args,
+                        return_type: ret,
                     }),
                 ) => {
-                    let mut new_args: Vec<Expr> = Vec::new();
-                    let arguments_result: Result<Vec<Type>, String> = arguments
-                        .drain(..)
+                    println!(
+                        "{:?} {:?} {:?}",
+                        parameters, positional_arguments, named_arguments
+                    );
+                    let mut exprs: Vec<Expr> = Vec::new();
+                    let positional_arguments = positional_arguments
+                        .into_iter()
                         .map(|arg| -> Result<Type, String> {
                             let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
                             deps.extend(dep);
-                            new_args.push(expr);
+                            exprs.push(expr);
                             Ok(type_)
                         })
-                        .collect();
-                    let arguments = arguments_result?;
-                    let arguments_match =
-                        Type::arguments_match_parameters(&arguments, &has_more_args, &parameters);
-                    if !arguments_match {
-                        println!("{:?} {:?}", arguments, parameters);
-                        return Err("Type mismatch in function call".to_string());
+                        .collect::<Result<_, _>>()?;
+                    let mut new_named_arguments: HashMap<String, Type> = HashMap::new();
+                    for (name, arg) in named_arguments {
+                        let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
+                        deps.extend(dep);
+                        exprs.push(expr);
+                        new_named_arguments.insert(name, type_);
                     }
+                    let names = arguments_match_parameters(
+                        &positional_arguments,
+                        &new_named_arguments,
+                        &parameters,
+                    )?;
+                    let args = names.into_iter().zip(exprs).collect::<Vec<_>>();
 
-                    Ok((Expr::FunctionCall(Box::new(function), new_args), *ret, deps))
+                    Ok((Expr::FunctionCall(Box::new(function), args), *ret, deps))
                 }
                 _ => Err("Type mismatch in function call".to_string()),
             }
+        }
+        ExprUnchecked::Struct(fields) => {
+            let mut new_fields: Vec<(String, Option<Expr>)> = Vec::new();
+            let mut parameters = Vec::new();
+            for (name, type_, default_value) in fields {
+                let type_ = check_type_annotation_types(type_, &mut type_context)?;
+                let default_value = match default_value {
+                    Some(default_value) => {
+                        let (expr, type_, dep) =
+                            check_expr_types(default_value, &mut type_context)?;
+                        if !type_.can_be_assigned_to(&type_) {
+                            return Err("Type mismatch in struct field".to_string());
+                        }
+                        Some(expr)
+                    }
+                    None => None,
+                };
+                if let Some(default_value) = default_value {
+                    parameters.push((name.clone(), type_, false));
+                    new_fields.push((name, Some(default_value)));
+                } else {
+                    parameters.push((name.clone(), type_, true));
+                    new_fields.push((name, None));
+                }
+            }
+            let struct_type = Type::Struct(parameters.clone());
+            Ok((
+                Expr::Struct(new_fields),
+                Type::Type(
+                    TypeProfile::Type(Box::new(struct_type.clone())),
+                    Some(FunctionProfile {
+                        parameters,
+                        return_type: Box::new(struct_type),
+                    }),
+                ),
+                HashSet::new(),
+            ))
         }
     }
 }
@@ -340,7 +400,7 @@ fn check_type_annotation_types(
     type_annotation: TypeAnnotationUnchecked,
     mut type_context: &mut TypeContext,
 ) -> Result<Type, String> {
-    let fun = if let Some((_, Type::Type(fun, _), _)) =
+    let type_profile = if let Some((_, Type::Type(fun, _), _)) =
         type_context.get_variable(&type_annotation.name)
     {
         fun.clone()
@@ -357,7 +417,15 @@ fn check_type_annotation_types(
         .into_iter()
         .map(|(_, type_, _)| type_)
         .collect::<Vec<Type>>();
-    fun(args)
+    match type_profile {
+        TypeProfile::Function(fun) => fun(args),
+        TypeProfile::Type(type_) => {
+            if !args.is_empty() {
+                return Err("Type takes no arguments".to_string());
+            }
+            Ok(*type_)
+        }
+    }
 }
 
 fn handle_bin_op(
@@ -452,4 +520,43 @@ fn handle_bin_op(
     let mut deps = dep1;
     deps.extend(dep2);
     Ok((expr, type_, deps))
+}
+
+pub fn arguments_match_parameters(
+    positional_arguments: &Vec<Type>,
+    named_arguments: &HashMap<String, Type>,
+    parameters: &Vec<(String, Type, bool)>,
+) -> Result<Vec<String>, String> {
+    println!(
+        "{:?} {:?} {:?}",
+        positional_arguments, named_arguments, parameters
+    );
+    let mut named_arguments = named_arguments.clone();
+    let mut positional_arguments = positional_arguments.iter();
+    let mut names: Vec<String> = Vec::new();
+    for (name, type_, required) in parameters.iter() {
+        if let Some(arg) = positional_arguments.next() {
+            if !type_.can_be_assigned_to(arg) {
+                println!("arg: {:?} type: {:?}", arg, type_);
+                return Err("Type mismatch in function call".to_string());
+            } else {
+                names.push(name.clone());
+            }
+        } else if let Some(arg) = named_arguments.remove(name) {
+            if !type_.can_be_assigned_to(&arg) {
+                return Err("Type mismatch in function call".to_string());
+            } else {
+                names.push(name.clone());
+            }
+        } else {
+            if *required {
+                return Err("Missing required argument".to_string());
+            }
+        }
+    }
+    if named_arguments.is_empty() && positional_arguments.next().is_none() {
+        Ok(names)
+    } else {
+        Err("Extra arguments in function call".to_string())
+    }
 }
