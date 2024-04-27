@@ -49,15 +49,30 @@ pub enum ExprUnchecked {
     Lambda(
         Vec<(String, TypeAnnotationUnchecked, Option<ExprUnchecked>)>,
         Box<ExprUnchecked>,
+        Option<TypeAnnotationUnchecked>,
     ),
     List(Vec<ExprUnchecked>),
+    Map(Vec<(ExprUnchecked, ExprUnchecked)>),
     Index(Box<ExprUnchecked>, Box<ExprUnchecked>),
     FunctionCall(
         Box<ExprUnchecked>,
         Vec<ExprUnchecked>,
         HashMap<String, ExprUnchecked>,
     ),
-    Struct(Vec<(String, TypeAnnotationUnchecked, Option<ExprUnchecked>)>),
+    Struct(
+        Vec<(
+            String,
+            Option<TypeAnnotationUnchecked>,
+            Option<ExprUnchecked>,
+            StructFieldKind,
+        )>,
+    ),
+}
+
+#[derive(Debug)]
+pub enum StructFieldKind {
+    Property,
+    Method,
 }
 
 #[derive(Debug)]
@@ -85,8 +100,9 @@ pub enum Expr {
     Lambda(Vec<(String, Option<Expr>)>, Box<Expr>, HashSet<String>),
     List(Vec<Expr>),
     Index(Box<Expr>, Box<Expr>),
-    Struct(Vec<(String, Option<Expr>)>),
+    Struct(Vec<(String, Option<Expr>, StructFieldKind)>),
     GetProperty(Box<Expr>, String),
+    Map(Vec<(Expr, Expr)>),
 }
 
 #[derive(Debug)]

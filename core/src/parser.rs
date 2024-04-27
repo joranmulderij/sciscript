@@ -4,7 +4,9 @@ use pest::iterators::Pair;
 use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
 
-use crate::ast::{AssignmentType, ExprUnchecked, LineUnchecked, Op, TypeAnnotationUnchecked};
+use crate::ast::{
+    AssignmentType, ExprUnchecked, LineUnchecked, Op, StructFieldKind, TypeAnnotationUnchecked,
+};
 use crate::types::NumberConstant;
 
 #[derive(pest_derive::Parser)]
@@ -13,74 +15,83 @@ struct MyParser;
 
 pub fn parse(input: &str) -> Result<Vec<LineUnchecked>, pest::error::Error<Rule>> {
     let pairs = MyParser::parse(Rule::entry, input)?;
-    Ok(build_line_ast(pairs))
+    Ok(parse_lines(pairs))
 }
 
-fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
+fn parse_lines(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
     let mut lines: Vec<LineUnchecked> = Vec::new();
     for pair in pairs {
-        let rule = pair.as_rule();
-        match &rule {
-            Rule::expr_line => {
-                let expr = pair.into_inner().next().unwrap();
-                let node = LineUnchecked::Expr(build_expr_ast(expr));
-                lines.push(node);
-            }
-            Rule::normal_assignment_line
-            | Rule::const_assignment_line
-            | Rule::let_assignment_line => {
-                let mut inner = pair.into_inner();
-                let var = inner.next().unwrap().as_str().to_string();
-                let optional_type_annotation = inner.next().unwrap();
-                println!("{:?}", optional_type_annotation.as_rule());
-                let type_annotation = match optional_type_annotation.into_inner().next() {
-                    Some(type_annotation) => Some(parse_type_annotation(type_annotation)),
-                    None => None,
-                };
-                let expr = inner.next().unwrap();
-                let assignment_type = match rule {
-                    Rule::normal_assignment_line => crate::ast::AssignmentType::Normal,
-                    Rule::let_assignment_line => crate::ast::AssignmentType::Let,
-                    Rule::const_assignment_line => crate::ast::AssignmentType::Const,
-                    _ => unreachable!(),
-                };
-                let node = LineUnchecked::Assign(
-                    var,
+        let line = parse_line(pair);
+        if let Some(line) = line {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
+    let rule = pair.as_rule();
+    let line = match &rule {
+        Rule::expr_line => {
+            let expr = pair.into_inner().next().unwrap();
+            LineUnchecked::Expr(build_expr_ast(expr))
+        }
+        Rule::normal_assignment_line | Rule::const_assignment_line | Rule::let_assignment_line => {
+            let mut inner = pair.into_inner();
+            let var = inner.next().unwrap().as_str().to_string();
+            let optional_type_annotation = inner.next().unwrap();
+            let type_annotation = match optional_type_annotation.into_inner().next() {
+                Some(type_annotation) => Some(parse_type_annotation(type_annotation)),
+                None => None,
+            };
+            let expr = inner.next().unwrap();
+            let assignment_type = match rule {
+                Rule::normal_assignment_line => crate::ast::AssignmentType::Normal,
+                Rule::let_assignment_line => crate::ast::AssignmentType::Let,
+                Rule::const_assignment_line => crate::ast::AssignmentType::Const,
+                _ => unreachable!(),
+            };
+            LineUnchecked::Assign(var, type_annotation, build_expr_ast(expr), assignment_type)
+        }
+        Rule::unitdef_line => {
+            let unit = pair.into_inner().next().unwrap().as_str().to_string();
+            LineUnchecked::UnitDef(unit)
+        }
+        Rule::function_line => {
+            let mut inner = pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let args = inner.next().unwrap();
+            let optional_type_annotation = inner.next().unwrap();
+            let type_annotation = match optional_type_annotation.into_inner().next() {
+                Some(type_annotation) => Some(parse_type_annotation(type_annotation)),
+                None => None,
+            };
+            let block = inner.next().unwrap();
+            let args = parse_args(args);
+            LineUnchecked::Assign(
+                name,
+                None,
+                ExprUnchecked::Lambda(
+                    args,
+                    Box::new(ExprUnchecked::Block(parse_lines(block.into_inner()))),
                     type_annotation,
-                    build_expr_ast(expr),
-                    assignment_type,
-                );
-                lines.push(node);
-            }
-            Rule::unitdef_line => {
-                let unit = pair.into_inner().next().unwrap().as_str().to_string();
-                let node = LineUnchecked::UnitDef(unit);
-                lines.push(node);
-            }
-            Rule::function_line => {
-                let mut inner = pair.into_inner();
-                let name = inner.next().unwrap().as_str().to_string();
-                let args = inner.next().unwrap();
-                let block = inner.next().unwrap();
-                let args = parse_args(args);
-                let node = LineUnchecked::Assign(
-                    name,
-                    None,
-                    ExprUnchecked::Lambda(
-                        args,
-                        Box::new(ExprUnchecked::Block(build_line_ast(block.into_inner()))),
-                    ),
-                    AssignmentType::Let,
-                );
-                lines.push(node);
-            }
-            Rule::struct_line => {
-                let mut inner = pair.into_inner();
-                let name = inner.next().unwrap().as_str().to_string();
-                let block = inner.next().unwrap();
-                let fields = block
-                    .into_inner()
-                    .map(|line| {
+                ),
+                AssignmentType::Let,
+            )
+        }
+        Rule::struct_line => {
+            let mut inner = pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let block = inner.next().unwrap();
+            let mut fields: Vec<(
+                String,
+                Option<TypeAnnotationUnchecked>,
+                Option<ExprUnchecked>,
+                StructFieldKind,
+            )> = Vec::new();
+            for line in block.into_inner() {
+                let field = match line.as_rule() {
+                    Rule::struct_property_line => {
                         let mut inner = line.into_inner();
                         let name = inner.next().unwrap().as_str().to_string();
                         let type_annotation = inner.next().unwrap();
@@ -90,25 +101,40 @@ fn build_line_ast(pairs: Pairs<Rule>) -> Vec<LineUnchecked> {
                             Some(default_value) => Some(build_expr_ast(default_value)),
                             None => None,
                         };
-                        (name, type_annotation, default_value)
-                    })
-                    .collect();
-                let node = LineUnchecked::Assign(
-                    name,
-                    None,
-                    ExprUnchecked::Struct(fields),
-                    AssignmentType::Let,
-                );
-                lines.push(node);
+                        (
+                            name,
+                            Some(type_annotation),
+                            default_value,
+                            StructFieldKind::Property,
+                        )
+                    }
+                    Rule::function_line => {
+                        let line = parse_line(line).unwrap();
+                        match line {
+                            LineUnchecked::Assign(name, None, expr, _) => {
+                                (name, None, Some(expr), StructFieldKind::Method)
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                fields.push(field);
             }
-            Rule::EOI => {}
-            _ => {
-                println!("{:?}", pair.as_rule());
-                unreachable!();
-            }
+            LineUnchecked::Assign(
+                name,
+                None,
+                ExprUnchecked::Struct(fields),
+                AssignmentType::Let,
+            )
         }
-    }
-    lines
+        Rule::EOI => return None,
+        _ => {
+            println!("{:?}", pair.as_rule());
+            unreachable!();
+        }
+    };
+    Some(line)
 }
 
 lazy_static::lazy_static! {
@@ -142,7 +168,7 @@ fn build_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 match item.as_rule() {
                     Rule::expr => conditions.push(build_expr_ast(item)),
                     Rule::block => {
-                        let ast = build_line_ast(item.into_inner());
+                        let ast = parse_lines(item.into_inner());
                         if blocks.len() + 1 == conditions.len() {
                             blocks.push(ast);
                         } else if blocks.len() == conditions.len() {
@@ -165,7 +191,7 @@ fn build_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             ExprUnchecked::For(
                 var,
                 Box::new(build_op_expr_ast(expr_ops)),
-                build_line_ast(block.into_inner()),
+                parse_lines(block.into_inner()),
             )
         }
         Rule::expr_ops => {
@@ -206,15 +232,31 @@ fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
             }
             Rule::block => {
                 let inner = primary.into_inner();
-                let lines = build_line_ast(inner);
+                let lines = parse_lines(inner);
                 ExprUnchecked::Block(lines)
+            }
+            Rule::map => {
+                let inner = primary.into_inner();
+                let mut items = Vec::new();
+                for item in inner {
+                    let mut inner = item.into_inner();
+                    let key = build_expr_ast(inner.next().unwrap());
+                    let value = build_expr_ast(inner.next().unwrap());
+                    items.push((key, value));
+                }
+                ExprUnchecked::Map(items)
             }
             Rule::lambda => {
                 let mut inner = primary.into_inner();
                 let arguments = inner.next().unwrap();
+                let optional_type_annotation = inner.next().unwrap();
+                let type_annotation = match optional_type_annotation.into_inner().next() {
+                    Some(type_annotation) => Some(parse_type_annotation(type_annotation)),
+                    None => None,
+                };
                 let expr = inner.next().unwrap();
                 let args = parse_args(arguments);
-                ExprUnchecked::Lambda(args, Box::new(build_expr_ast(expr)))
+                ExprUnchecked::Lambda(args, Box::new(build_expr_ast(expr)), type_annotation)
             }
             Rule::list => {
                 let inner = primary.into_inner();

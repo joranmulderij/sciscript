@@ -20,3 +20,8 @@ def my_print(value):
 def linspace(start, stop, n):
     step = (stop - start) / n
     return [start + i * step for i in range(n)]
+
+def cross(a, b):
+    return [a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0]]

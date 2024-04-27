@@ -5,6 +5,21 @@ use std::{
 
 use crate::units::UnitSet;
 
+#[derive(Debug, Clone)]
+pub enum Type {
+    Number(UnitSet, Option<NumberConstant>),
+    Function(FunctionProfile),
+    Type(TypeProfile, Option<FunctionProfile>),
+    List(Box<Type>),
+    Map(Box<Type>, Box<Type>),
+    Matrix(i64, i64),
+    Range,
+    Bool,
+    Void,
+    Any,
+    Struct(Vec<(String, Type, bool)>),
+}
+
 pub struct TypeContext {
     scopes: Vec<Scope>,
     counter: usize,
@@ -37,13 +52,24 @@ impl TypeContext {
         variables
     }
 
-    pub fn insert_variable(&mut self, name: String, type_: Type, const_: bool) -> String {
+    pub fn insert_variable(
+        &mut self,
+        name: String,
+        id: Option<String>,
+        type_: Type,
+        const_: bool,
+    ) -> String {
         let type_ = match type_ {
             Type::Number(unit_set, _) if !const_ => Type::Number(unit_set, None),
             type_ => type_,
         };
-        self.counter += 1;
-        let id = format!("var_{}", self.counter);
+        let id = match id {
+            Some(id) => id,
+            None => {
+                self.counter += 1;
+                format!("var_{}", self.counter)
+            }
+        };
         self.scopes
             .last_mut()
             .unwrap()
@@ -84,19 +110,6 @@ pub enum TypeProfile {
     Type(Box<Type>),
 }
 
-#[derive(Debug, Clone)]
-pub enum Type {
-    Number(UnitSet, Option<NumberConstant>),
-    Function(FunctionProfile),
-    Type(TypeProfile, Option<FunctionProfile>),
-    List(Box<Type>),
-    Range,
-    Bool,
-    Void,
-    Any,
-    Struct(Vec<(String, Type, bool)>),
-}
-
 impl Type {
     pub fn number() -> Self {
         Self::Number(UnitSet::empty(), None)
@@ -115,15 +128,18 @@ impl Type {
                     return_type: ret2,
                 }),
             ) => {
-                // let arguments_match =
-                //     Self::arguments_match_parameters(req_args1, opt_args1, req_args2, opt_args2);
-                // let returns_match = ret1.can_be_assigned_to(ret2.as_ref());
-                // let last_args_match = *has_more_args1 && !has_more_args2;
-                // arguments_match && returns_match && last_args_match
-                todo!()
+                parameters1.len() == parameters2.len()
+                    && parameters1
+                        .iter()
+                        .zip(parameters2.iter())
+                        .all(|((_, t1, _), (_, t2, _))| t1.can_be_assigned_to(t2))
+                    && ret1.can_be_assigned_to(ret2)
             }
             (Self::Type(_t1, _profile1), Self::Type(_t2, _profile2)) => todo!(),
             (Self::List(t1), Self::List(t2)) => t1.can_be_assigned_to(t2),
+            (Self::Map(k1, v1), Self::Map(k2, v2)) => {
+                k1.can_be_assigned_to(k2) && v1.can_be_assigned_to(v2)
+            }
             (Self::Bool, Self::Bool) => true,
             (Self::Void, Self::Void) => true,
             (Self::Any, _) => true,

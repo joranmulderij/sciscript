@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    ast::{AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, TypeAnnotationUnchecked},
+    ast::{
+        AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, StructFieldKind,
+        TypeAnnotationUnchecked,
+    },
     types::{FunctionProfile, NumberConstant, Type, TypeContext, TypeProfile},
     units::{Unit, UnitSet},
 };
@@ -36,7 +39,7 @@ pub fn check_types(
                             }
                             id.clone()
                         } else {
-                            let id = type_context.insert_variable(var, type2.clone(), false);
+                            let id = type_context.insert_variable(var, None, type2.clone(), false);
                             id
                         }
                     }
@@ -46,13 +49,14 @@ pub fn check_types(
                             println!("{:?}", type_annotation);
                             let type_ = check_type_annotation_types(type_annotation, type_context)?;
                             if !type_.can_be_assigned_to(&type2) {
+                                println!("{:?} --- {:?}", type_, type2);
                                 return Err("Type mismatch in assignment".to_string());
                             }
                             type_
                         } else {
                             type2.clone()
                         };
-                        let id = type_context.insert_variable(var, type_, const_);
+                        let id = type_context.insert_variable(var, None, type_, const_);
                         id
                     }
                 };
@@ -63,7 +67,7 @@ pub fn check_types(
                 let unit = Unit { name: name.clone() };
                 let type_ =
                     Type::Number(UnitSet::single_unit(unit), Some(NumberConstant::Integer(1)));
-                type_context.insert_variable(name, type_.clone(), true);
+                type_context.insert_variable(name, None, type_.clone(), true);
                 type_
             }
         }
@@ -103,6 +107,7 @@ fn check_expr_types(
         ExprUnchecked::Sequencial(lhs, rhs) => {
             let (expr1, type1, dep1) = check_expr_types(*lhs, type_context)?;
             let (expr2, type2, dep2) = check_expr_types(*rhs, type_context)?;
+            println!("{:?} {:?}", type1, type2);
             match (type1, type2) {
                 (type1, type2)
                     if matches!(type1, Type::Number(_, _))
@@ -197,7 +202,7 @@ fn check_expr_types(
                 _ => return Err("Type mismatch in for loop".to_string()),
             };
             type_context.push_scope();
-            let id = type_context.insert_variable(var.clone(), i_type, true);
+            let id = type_context.insert_variable(var.clone(), None, i_type, true);
             let (block, type_, dep2) = check_types(block, type_context)?;
             let variables = type_context.pop_scope();
             let info = Expr::For(id, Box::new(expr), block);
@@ -214,17 +219,26 @@ fn check_expr_types(
             let expr = Expr::Block(new_lines);
             Ok((expr, type_, deps))
         }
-        ExprUnchecked::Lambda(parameters, block) => {
+        ExprUnchecked::Lambda(parameters, block, type_annotation) => {
+            let return_type = match type_annotation {
+                Some(type_annotation) => Some(check_type_annotation_types(
+                    type_annotation,
+                    &mut type_context,
+                )?),
+                None => None,
+            };
             type_context.push_scope();
+            let mut deps: HashSet<String> = HashSet::new();
             let parameters: Vec<(String, Type, Option<Expr>)> = parameters
                 .into_iter()
                 .map(|(name, type_, default_value)| {
                     let type_ = check_type_annotation_types(type_, &mut type_context)?;
-                    let id = type_context.insert_variable(name.clone(), type_.clone(), false);
+                    let id = type_context.insert_variable(name.clone(), None, type_.clone(), false);
                     let default_value = match default_value {
                         Some(default_value) => {
                             let (expr, default_value_type, dep) =
                                 check_expr_types(default_value, &mut type_context)?;
+                            deps.extend(dep);
                             if !type_.can_be_assigned_to(&default_value_type) {
                                 return Err("Type mismatch in lambda parameter".to_string());
                             }
@@ -235,7 +249,16 @@ fn check_expr_types(
                     Ok((id, type_, default_value))
                 })
                 .collect::<Result<Vec<_>, String>>()?;
-            let (block, return_type, deps) = check_expr_types(*block, &mut type_context)?;
+            let (block, return_type2, dep2) = check_expr_types(*block, &mut type_context)?;
+            let return_type = if let Some(return_type) = return_type {
+                if !return_type.can_be_assigned_to(&return_type2) {
+                    return Err("Type mismatch in lambda return type".to_string());
+                }
+                return_type
+            } else {
+                return_type2
+            };
+            deps.extend(dep2);
             type_context.pop_scope();
             let type_ = Type::Function(FunctionProfile {
                 parameters: parameters
@@ -290,16 +313,56 @@ fn check_expr_types(
             let type_ = item_type.unwrap_or(Type::Void);
             Ok((Expr::List(new_items), Type::List(Box::new(type_)), deps))
         }
+        ExprUnchecked::Map(items) => {
+            let mut new_items: Vec<(Expr, Expr)> = Vec::new();
+            let mut deps: HashSet<String> = HashSet::new();
+            let mut key_type: Option<Type> = None;
+            let mut value_type: Option<Type> = None;
+            for (key, value) in items {
+                let (key, key_type_, dep1) = check_expr_types(key, &mut type_context)?;
+                let (value, value_type_, dep2) = check_expr_types(value, &mut type_context)?;
+                deps.extend(dep1);
+                deps.extend(dep2);
+                key_type = match key_type {
+                    Some(key_type) if !key_type.can_be_assigned_to(&key_type_) => Some(Type::Any),
+                    _ => Some(key_type_),
+                };
+                value_type = match value_type {
+                    Some(value_type) if !value_type.can_be_assigned_to(&value_type_) => {
+                        Some(Type::Any)
+                    }
+                    _ => Some(value_type_),
+                };
+                new_items.push((key, value));
+            }
+            let key_type = key_type.unwrap_or(Type::Void);
+            let value_type = value_type.unwrap_or(Type::Void);
+            let type_ = Type::Map(Box::new(key_type), Box::new(value_type));
+            Ok((Expr::Map(new_items), type_, deps))
+        }
         ExprUnchecked::Index(expr, index) => {
             let (expr, type_expr, dep_expr) = check_expr_types(*expr, &mut type_context)?;
             let (index, type_index, dep_index) = check_expr_types(*index, &mut type_context)?;
             println!("{:?} {:?}", type_expr, type_index);
-            let type_ = match type_expr {
-                Type::List(type_) => {
+            let type_ = match (type_expr, type_index) {
+                (Type::List(type_), type_index) => {
                     if !Type::Number(UnitSet::empty(), None).can_be_assigned_to(&type_index) {
                         return Err("Type mismatch in index".to_string());
                     }
                     *type_
+                }
+                (Type::Type(type_profile, constructor), type_index) => match type_profile {
+                    TypeProfile::Function(fun) => Type::Type(
+                        TypeProfile::Type(Box::new(fun(vec![type_index])?)),
+                        constructor,
+                    ),
+                    TypeProfile::Type(_) => return Err("Type mismatch in index".to_string()),
+                },
+                (Type::Map(key_type, value_type), type_index) => {
+                    if !key_type.can_be_assigned_to(&type_index) {
+                        return Err("Type mismatch in index".to_string());
+                    }
+                    *value_type
                 }
                 _ => return Err("Type mismatch in index".to_string()),
             };
@@ -357,28 +420,52 @@ fn check_expr_types(
             }
         }
         ExprUnchecked::Struct(fields) => {
-            let mut new_fields: Vec<(String, Option<Expr>)> = Vec::new();
-            let mut parameters = Vec::new();
-            for (name, type_, default_value) in fields {
-                let type_ = check_type_annotation_types(type_, &mut type_context)?;
+            let mut new_fields: Vec<(String, Option<Expr>, StructFieldKind)> = Vec::new();
+            let mut deps: HashSet<String> = HashSet::new();
+            let mut parameters: Vec<(String, Type, bool)> = Vec::new();
+            for (name, type_annotation, default_value, field_kind) in fields {
+                let mut type_ = None;
+
+                if let Some(type_annotation) = type_annotation {
+                    type_ = Some(check_type_annotation_types(
+                        type_annotation,
+                        &mut type_context,
+                    )?)
+                }
                 let default_value = match default_value {
                     Some(default_value) => {
-                        let (expr, type_, dep) =
+                        type_context.push_scope();
+                        for (name, type_, _) in &parameters {
+                            let id = format!("self.{}", name);
+                            type_context.insert_variable(
+                                name.clone(),
+                                Some(id),
+                                type_.clone(),
+                                false,
+                            );
+                        }
+                        let (expr, expr_type, dep) =
                             check_expr_types(default_value, &mut type_context)?;
-                        if !type_.can_be_assigned_to(&type_) {
-                            return Err("Type mismatch in struct field".to_string());
+                        deps.extend(dep);
+                        let dep = type_context.pop_scope();
+                        deps.extend(dep);
+                        if let Some(type_) = &type_ {
+                            if !type_.can_be_assigned_to(&expr_type) {
+                                return Err("Type mismatch in struct field".to_string());
+                            }
+                        } else {
+                            type_ = Some(expr_type);
                         }
                         Some(expr)
                     }
                     None => None,
                 };
-                if let Some(default_value) = default_value {
-                    parameters.push((name.clone(), type_, false));
-                    new_fields.push((name, Some(default_value)));
-                } else {
-                    parameters.push((name.clone(), type_, true));
-                    new_fields.push((name, None));
-                }
+                parameters.push((
+                    name.clone(),
+                    type_.unwrap_or(Type::Any),
+                    default_value.is_none(),
+                ));
+                new_fields.push((name, default_value, field_kind));
             }
             let struct_type = Type::Struct(parameters.clone());
             Ok((
@@ -390,7 +477,7 @@ fn check_expr_types(
                         return_type: Box::new(struct_type),
                     }),
                 ),
-                HashSet::new(),
+                deps,
             ))
         }
     }
@@ -400,6 +487,7 @@ fn check_type_annotation_types(
     type_annotation: TypeAnnotationUnchecked,
     mut type_context: &mut TypeContext,
 ) -> Result<Type, String> {
+    println!("{:?}", type_context.get_variable(&type_annotation.name));
     let type_profile = if let Some((_, Type::Type(fun, _), _)) =
         type_context.get_variable(&type_annotation.name)
     {

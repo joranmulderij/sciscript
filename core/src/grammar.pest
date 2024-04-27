@@ -5,6 +5,7 @@ block =  { "{" ~ lines? ~ "}" }
 line  = _{ (unitdef_line | function_line | struct_line | assignment_line | expr_line | comment) ~ comment? }
 
 expr_line      =  { expr }
+flexible_expr  = _{ NEWLINE* ~ expr ~ NEWLINE* }
 expr           =  { for_statement | if_statement | (expr_ops+) }
 if_statement   =  { if ~ expr ~ block ~ (else ~ if ~ expr ~ block)* ~ (else ~ block)? }
 for_statement  =  { for ~ variable ~ in ~ expr_ops ~ block }
@@ -20,11 +21,14 @@ argument       = _{ named_argument | expr }
 named_argument =  { variable ~ "=" ~ expr }
 primary        = _{ literal | "(" ~ expr ~ ")" }
 
-literal = _{ keyword_literal | number | variable | block | lambda | list }
+literal = _{ keyword_literal | number | variable | map | block | lambda | list }
 
-list = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
+list = { "[" ~ (flexible_expr ~ ("," ~ flexible_expr)* ~ ","? ~ NEWLINE*)? ~ "]" }
 
-lambda             =  { "(" ~ parameters ~ ")" ~ "=>" ~ expr }
+map       = { "{" ~ (map_entry ~ ("," ~ map_entry)*)? ~ "}" }
+map_entry = { expr ~ ":" ~ expr }
+
+lambda             =  { "(" ~ parameters ~ ")" ~ optional_type_annotation ~ "=>" ~ expr }
 parameters         =  { (parameter ~ ("," ~ parameter)*)? }
 parameter          = _{ optional_parameter | required_parameter }
 required_parameter =  { variable ~ ":" ~ type_annotation }
@@ -49,10 +53,10 @@ const_assignment_line    =  { const ~ variable ~ optional_type_annotation ~ "=" 
 optional_type_annotation =  { (":" ~ type_annotation)? }
 no_type_annotation       =  { "" }
 
-function_line = { "fn" ~ variable ~ "(" ~ parameters ~ ")" ~ block }
+function_line = { "fn" ~ variable ~ "(" ~ parameters ~ ")" ~ optional_type_annotation ~ block }
 
 struct_line          = { struct ~ variable ~ struct_block }
-struct_block         = { "{" ~ NEWLINE* ~ struct_property_line ~ (NEWLINE* ~ struct_property_line)* ~ NEWLINE* ~ "}" }
+struct_block         = { "{" ~ NEWLINE* ~ struct_property_line ~ (NEWLINE* ~ struct_property_line)* ~ (NEWLINE* ~ function_line)* ~ NEWLINE* ~ "}" }
 struct_property_line = { variable ~ ":" ~ type_annotation ~ ("=" ~ expr)? }
 
 unitdef_line = { unit ~ variable }

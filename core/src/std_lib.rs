@@ -13,6 +13,38 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
         ("cos".to_string(), "math.cos".to_string(), num_type.clone()),
         ("tan".to_string(), "math.tan".to_string(), num_type.clone()),
         (
+            "pow".to_string(),
+            "math.pow".to_string(),
+            Type::Function(FunctionProfile {
+                parameters: vec![
+                    ("base".to_string(), Type::number(), true),
+                    ("exp".to_string(), Type::number(), true),
+                ],
+                return_type: Box::new(Type::number()),
+            }),
+        ),
+        (
+            "atan2".to_string(),
+            "math.atan2".to_string(),
+            Type::Function(FunctionProfile {
+                parameters: vec![
+                    ("a".to_string(), Type::number(), true),
+                    ("b".to_string(), Type::number(), true),
+                ],
+                return_type: Box::new(Type::number()),
+            }),
+        ),
+        ("abs".to_string(), "abs".to_string(), num_type.clone()),
+        ("log".to_string(), "math.log".to_string(), num_type.clone()),
+        ("exp".to_string(), "math.exp".to_string(), num_type.clone()),
+        ("pi".to_string(), "math.pi".to_string(), Type::number()),
+        ("e".to_string(), "math.e".to_string(), Type::number()),
+        (
+            "sqrt".to_string(),
+            "math.sqrt".to_string(),
+            num_type.clone(),
+        ),
+        (
             "print".to_string(),
             "std.my_print".to_string(),
             Type::Function(FunctionProfile {
@@ -45,6 +77,16 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
             "list".to_string(),
             "std.list".to_string(),
             Type::Type(TypeProfile::Function(list), None),
+        ),
+        (
+            "map".to_string(),
+            "std.map".to_string(),
+            Type::Type(TypeProfile::Function(map), None),
+        ),
+        (
+            "mat".to_string(),
+            "std.mat".to_string(),
+            Type::Type(TypeProfile::Function(mat), None),
         ),
         (
             "linspace".to_string(),
@@ -99,4 +141,45 @@ fn list(mut args: Vec<Type>) -> Result<Type, String> {
         _ => return Err("list[] takes a type as argument".to_string()),
     };
     Ok(Type::List(Box::new(type_)))
+}
+
+fn map(mut args: Vec<Type>) -> Result<Type, String> {
+    if args.len() == 0 {
+        return Ok(Type::Map(Box::new(Type::Any), Box::new(Type::Any)));
+    }
+    if args.len() != 2 {
+        return Err("map[] takes exactly two arguments".to_string());
+    }
+    let key = args.remove(0);
+    let value = args.remove(0);
+    let key = match key {
+        Type::Type(profile, _) => match profile {
+            TypeProfile::Function(fun) => fun(vec![])?,
+            TypeProfile::Type(t) => *t,
+        },
+        _ => return Err("map[] takes a type as key argument".to_string()),
+    };
+    let value = match value {
+        Type::Type(profile, _) => match profile {
+            TypeProfile::Function(fun) => fun(vec![])?,
+            TypeProfile::Type(t) => *t,
+        },
+        _ => return Err("map[] takes a type as value argument".to_string()),
+    };
+    Ok(Type::Map(Box::new(key), Box::new(value)))
+}
+
+fn mat(mut args: Vec<Type>) -> Result<Type, String> {
+    if args.len() != 2 {
+        return Err("mat[] takes exactly two arguments".to_string());
+    }
+    let rows = match args.remove(0) {
+        Type::Number(_, Some(NumberConstant::Integer(i))) => i,
+        _ => return Err("mat[] takes a number as first argument".to_string()),
+    };
+    let cols = match args.remove(0) {
+        Type::Number(_, Some(NumberConstant::Integer(i))) => i,
+        _ => return Err("mat[] takes a number as second argument".to_string()),
+    };
+    Ok(Type::Matrix(rows, cols))
 }

@@ -1,6 +1,7 @@
+use core::panic;
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Line, Op};
+use crate::ast::{Expr, Line, Op, StructFieldKind};
 
 pub fn generate_python_code(ast: Vec<Line>) -> String {
     let mut python_code = String::new();
@@ -146,7 +147,9 @@ impl Expr {
                 pl.push_str(&parameters);
                 pl.push_str("):\n");
                 for dep in deps {
-                    pl.push_str(&format!("    global {}\n", dep));
+                    if !dep.contains(".") {
+                        pl.push_str(&format!("    global {}\n", dep));
+                    }
                 }
                 let (block_pl, expr) = (*block).to_python_code();
                 pl.push_str(&indent(block_pl));
@@ -160,25 +163,82 @@ impl Expr {
                 (pl1 + &pl2, format!("{}[{}]", expr, index))
             }
             Expr::Struct(fields) => {
-                let (pl, parameters) = parameters_to_python_code(fields);
-                let pl = format!(
-                    "{}class Struct:
+                let mut constructor_body = String::new();
+                let mut parameters: Vec<String> = Vec::new();
+                let mut methods = String::new();
+                let mut pl1 = String::new();
+                for (name, default, kind) in fields {
+                    match kind {
+                        StructFieldKind::Property => {
+                            let parameter = if let Some(default) = default {
+                                let (pl, default) = default.to_python_code();
+                                pl1.push_str(&pl);
+                                format!("{}={}", name, default)
+                            } else {
+                                name.clone()
+                            };
+                            parameters.push(parameter);
+                            constructor_body
+                                .push_str(&format!("        self.{} = {}\n", name, name));
+                        }
+                        StructFieldKind::Method => {
+                            // let (pl, method) = default.as_ref().unwrap().to_python_code();
+                            // pl1.push_str(&pl);
+                            // methods.push_str(&(indent(method) + "\n"))
+                            if let Some(Expr::Lambda(parameters, block, deps)) = default {
+                                let mut method = String::new();
+                                let (pl, parameters) = parameters_to_python_code(&parameters);
+                                pl1.push_str(&pl);
+                                method.push_str(&pl);
+                                method.push_str("def ");
+                                method.push_str(&name);
+                                method.push_str("(self, ");
+                                method.push_str(&parameters);
+                                method.push_str("):\n");
+                                for dep in deps {
+                                    if !dep.contains(".") {
+                                        method.push_str(&format!("    global {}\n", dep));
+                                    }
+                                }
+                                let (block_pl, expr) = (*block).to_python_code();
+                                method.push_str(&indent(block_pl));
+                                method.push_str("\n");
+                                method.push_str(&indent("return ".to_string() + &expr));
+                                methods.push_str(&(indent(method) + "\n"));
+                            } else {
+                                panic!("Method must be a lambda");
+                            }
+                        }
+                    }
+                }
+                let pl2 = format!(
+                    "
+class Struct:
     def __init__(self, {}):
 {}
+{}
 ",
-                    pl,
-                    parameters,
-                    fields
-                        .iter()
-                        .map(|(field, _)| format!("        self.{} = {}", field, field))
-                        .collect::<Vec<_>>()
-                        .join("\n")
+                    parameters.join(", "),
+                    constructor_body,
+                    methods,
                 );
-                (pl, "Struct".to_string())
+                (pl1 + &pl2, "Struct".to_string())
             }
             Expr::GetProperty(expr, field) => {
                 let (pl, expr) = expr.to_python_code();
                 (pl, format!("{}.{}", expr, field))
+            }
+            Expr::Map(fields) => {
+                let mut pl = String::new();
+                let mut fields_str = Vec::new();
+                for (key, value) in fields {
+                    let (pl2, key) = key.to_python_code();
+                    let (pl3, value) = value.to_python_code();
+                    pl.push_str(&pl2);
+                    pl.push_str(&pl3);
+                    fields_str.push(format!("{}: {}", key, value));
+                }
+                (pl, format!("{{{}}}", fields_str.join(", ")))
             }
         }
     }
