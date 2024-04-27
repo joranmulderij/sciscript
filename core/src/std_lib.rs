@@ -34,6 +34,17 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
                 return_type: Box::new(Type::number()),
             }),
         ),
+        (
+            "cross".to_string(),
+            "np.cross".to_string(),
+            Type::Function(FunctionProfile {
+                parameters: vec![
+                    ("a".to_string(), Type::Matrix(3, 1, None), true),
+                    ("b".to_string(), Type::Matrix(3, 1, None), true),
+                ],
+                return_type: Box::new(Type::Matrix(3, 1, None)),
+            }),
+        ),
         ("abs".to_string(), "abs".to_string(), num_type.clone()),
         ("log".to_string(), "math.log".to_string(), num_type.clone()),
         ("exp".to_string(), "math.exp".to_string(), num_type.clone()),
@@ -104,6 +115,7 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
     let imports = "
 import math
 import std_lib as std
+import numpy as np
 "
     .to_string();
     (imports, variables)
@@ -170,8 +182,8 @@ fn map(mut args: Vec<Type>) -> Result<Type, String> {
 }
 
 fn mat(mut args: Vec<Type>) -> Result<Type, String> {
-    if args.len() != 2 {
-        return Err("mat[] takes exactly two arguments".to_string());
+    if args.len() != 3 && args.len() != 2 {
+        return Err("mat[] takes exactly three arguments".to_string());
     }
     let rows = match args.remove(0) {
         Type::Number(_, Some(NumberConstant::Integer(i))) => i,
@@ -181,5 +193,18 @@ fn mat(mut args: Vec<Type>) -> Result<Type, String> {
         Type::Number(_, Some(NumberConstant::Integer(i))) => i,
         _ => return Err("mat[] takes a number as second argument".to_string()),
     };
-    Ok(Type::Matrix(rows, cols))
+    let unit = if args.len() != 0 {
+        Some(type_to_unit_set(args.remove(0))?)
+    } else {
+        None
+    };
+    Ok(Type::Matrix(rows as usize, cols as usize, unit))
+}
+
+fn type_to_unit_set(type_: Type) -> Result<UnitSet, String> {
+    Ok(match type_ {
+        Type::Number(unit, Some(NumberConstant::Integer(1))) => unit,
+        Type::Number(unit, Some(NumberConstant::Float(f))) if f == 1.0 => unit,
+        _ => return Err("Expected a unit".to_string()),
+    })
 }

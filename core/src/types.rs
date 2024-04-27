@@ -12,7 +12,7 @@ pub enum Type {
     Type(TypeProfile, Option<FunctionProfile>),
     List(Box<Type>),
     Map(Box<Type>, Box<Type>),
-    Matrix(i64, i64),
+    Matrix(usize, usize, Option<UnitSet>),
     Range,
     Bool,
     Void,
@@ -86,12 +86,6 @@ impl TypeContext {
         }
         None
     }
-
-    // pub fn print_last_scope(&self) {
-    //     for (name, (id, type_, const_)) in self.scopes.last().unwrap().variables.iter() {
-    //         println!("{}: {} {:?} {}", name, id, type_, const_);
-    //     }
-    // }
 }
 
 pub struct Scope {
@@ -137,6 +131,9 @@ impl Type {
             }
             (Self::Type(_t1, _profile1), Self::Type(_t2, _profile2)) => todo!(),
             (Self::List(t1), Self::List(t2)) => t1.can_be_assigned_to(t2),
+            (Self::Matrix(rows1, cols1, unit1), Self::Matrix(rows2, cols2, unit2)) => {
+                (unit1.is_none() || unit1 == unit2) && rows1 == rows2 && cols1 == cols2
+            }
             (Self::Map(k1, v1), Self::Map(k2, v2)) => {
                 k1.can_be_assigned_to(k2) && v1.can_be_assigned_to(v2)
             }

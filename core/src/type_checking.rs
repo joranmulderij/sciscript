@@ -480,6 +480,43 @@ fn check_expr_types(
                 deps,
             ))
         }
+        ExprUnchecked::Matrix(matrix) => {
+            let mut new_matrix: Vec<Vec<Expr>> = Vec::new();
+            let mut deps: HashSet<String> = HashSet::new();
+            let mut row_length: Option<usize> = None;
+            let mut unitset: Option<UnitSet> = None;
+            for row in matrix {
+                let mut new_row: Vec<Expr> = Vec::new();
+                for item in row {
+                    let (expr, type_, dep) = check_expr_types(item, &mut type_context)?;
+                    deps.extend(dep);
+                    if let Type::Number(unit, _) = type_ {
+                        unitset = match unitset {
+                            Some(unit_set) => {
+                                if unit_set != unit {
+                                    return Err("Unit mismatch in matrix".to_string());
+                                }
+                                Some(unit_set)
+                            }
+                            None => Some(unit),
+                        };
+                    } else {
+                        return Err("Type mismatch in matrix".to_string());
+                    }
+                    new_row.push(expr);
+                }
+                row_length = match row_length {
+                    Some(row_length) if row_length != new_row.len() => {
+                        return Err("Row length mismatch in matrix".to_string());
+                    }
+                    _ => Some(new_row.len()),
+                };
+                new_matrix.push(new_row);
+            }
+            let row_length = row_length.unwrap_or(0);
+            let type_ = Type::Matrix(row_length, new_matrix.len(), unitset);
+            Ok((Expr::Matrix(new_matrix), type_, deps))
+        }
     }
 }
 
@@ -602,6 +639,28 @@ fn handle_bin_op(
                 },
             };
             (expr, Type::Number(unit, const_))
+        }
+        (Type::Matrix(rows1, cols1, unit1), Op::Multiply, Type::Matrix(rows2, cols2, unit2)) => {
+            if cols1 == 1 && cols2 == 1 {
+                // dot product
+                if rows1 != rows2 {
+                    return Err("Matrix dimensions mismatch in multiplication".to_string());
+                }
+                let unit = match (unit1, unit2) {
+                    (Some(unit1), Some(unit2)) => Some(unit1 + unit2),
+                    _ => None,
+                };
+                (
+                    Expr::BinOp {
+                        lhs: Box::new(expr1),
+                        op,
+                        rhs: Box::new(expr2),
+                    },
+                    Type::Number(unit.unwrap_or(UnitSet::empty()), None),
+                )
+            } else {
+                todo!()
+            }
         }
         _ => return Err("Type mismatch in binary operation".to_string()),
     };

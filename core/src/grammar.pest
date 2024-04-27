@@ -21,9 +21,12 @@ argument       = _{ named_argument | expr }
 named_argument =  { variable ~ "=" ~ expr }
 primary        = _{ literal | "(" ~ expr ~ ")" }
 
-literal = _{ keyword_literal | number | variable | map | block | lambda | list }
+literal = _{ keyword_literal | number | variable | map | block | lambda | list | matrix }
 
 list = { "[" ~ (flexible_expr ~ ("," ~ flexible_expr)* ~ ","? ~ NEWLINE*)? ~ "]" }
+
+matrix     = { "#[" ~ matrix_row* ~ "]" }
+matrix_row = { NEWLINE* ~ expr ~ ("," ~ expr)* ~ ","? ~ NEWLINE* }
 
 map       = { "{" ~ (map_entry ~ ("," ~ map_entry)*)? ~ "}" }
 map_entry = { expr ~ ":" ~ expr }

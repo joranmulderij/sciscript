@@ -240,6 +240,20 @@ class Struct:
                 }
                 (pl, format!("{{{}}}", fields_str.join(", ")))
             }
+            Expr::Matrix(rows) => {
+                let mut pl = String::new();
+                let mut rows_str = Vec::new();
+                for row in rows {
+                    let mut row_str = Vec::new();
+                    for item in row {
+                        let (pl2, item) = item.to_python_code();
+                        pl.push_str(&pl2);
+                        row_str.push(item);
+                    }
+                    rows_str.push(format!("[{}]", row_str.join(", ")));
+                }
+                (pl, format!("np.matrix([{}])", rows_str.join(", ")))
+            }
         }
     }
 }

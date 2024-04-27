@@ -263,6 +263,14 @@ fn build_op_expr_ast(pair: Pair<Rule>) -> ExprUnchecked {
                 let items = inner.map(build_expr_ast).collect();
                 ExprUnchecked::List(items)
             }
+            Rule::matrix => {
+                let mut matrix = Vec::new();
+                for row in primary.into_inner() {
+                    let row = row.into_inner().map(build_expr_ast).collect();
+                    matrix.push(row);
+                }
+                ExprUnchecked::Matrix(matrix)
+            }
             rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
         })
         .map_infix(|lhs, op, rhs| {

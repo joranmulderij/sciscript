@@ -2,7 +2,18 @@
 
 import math
 import std_lib as std
+import numpy as np
 
+
+class Struct:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+
+
+
+var_2 = Struct
 
 class Struct:
     def __init__(self, x, y, z, is_fixed_x=False, is_fixed_y=False, is_fixed_z=False, is_fixed_mx=False, is_fixed_my=False, is_fixed_mz=False):
@@ -18,13 +29,38 @@ class Struct:
 
 
 
-var_2 = Struct
-def func(var_3, var_4):
-    var_5 = (var_3.x - var_4.x)
-    var_6 = (var_3.y - var_4.y)
-    var_7 = (var_3.z - var_4.z)
-    return math.sqrt(value=(((var_5 * var_5) + (var_6 * var_6)) + (var_7 * var_7)))
-var_8 = func
+var_3 = Struct
+def func(var_4, var_5):
+    var_6 = (var_4.x - var_5.x)
+    var_7 = (var_4.y - var_5.y)
+    var_8 = (var_4.z - var_5.z)
+    return math.sqrt(value=(((var_6 * var_6) + (var_7 * var_7)) + (var_8 * var_8)))
+var_9 = func
+def func(var_10, var_11, var_12):
+    global var_2
+    var_13 = math.sqrt(value=(((var_10 * var_10) + (var_11 * var_11)) + (var_12 * var_12)))
+    var_14 = np.matrix([[(var_10 / var_13), (var_11 / var_13), (var_12 / var_13)]])
+    var_15 = math.atan2(b=var_10, a=var_12)
+    var_16 = math.cos(value=(var_15 + (math.pi / 2)))
+    var_17 = math.sin(value=(var_15 + (math.pi / 2)))
+    var_18 = np.matrix([[var_16, 0, var_17]])
+    var_19 = np.cross(a=var_14, b=var_18)
+    return var_2(z=var_18, y=var_19, x=var_14)
+var_20 = func
+def func(var_21, var_22):
+    var_23 = (var_21.x - var_22.x)
+    var_24 = (var_21.y - var_22.y)
+    var_25 = (var_21.z - var_22.z)
+    var_26 = var_20(var_10=var_23, var_12=var_25, var_11=var_24)
+    var_27 = var_26.x
+    var_28 = var_26.y
+    var_29 = var_26.z
+    var_30 = np.matrix([[1, 0, 0]])
+    var_31 = np.matrix([[0, 1, 0]])
+    var_32 = np.matrix([[0, 0, 1]])
+    var_33 = np.matrix([[(var_30 * var_27), (var_30 * var_28), (var_30 * var_29), 0, 0, 0, 0, 0, 0, 0, 0, 0], [(var_31 * var_27), (var_31 * var_28), (var_31 * var_29), 0, 0, 0, 0, 0, 0, 0, 0, 0], [(var_32 * var_27), (var_32 * var_28), (var_32 * var_29), 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, (var_30 * var_27), (var_30 * var_28), (var_30 * var_29), 0, 0, 0, 0, 0, 0], [0, 0, 0, (var_31 * var_27), (var_31 * var_28), (var_31 * var_29), 0, 0, 0, 0, 0, 0], [0, 0, 0, (var_32 * var_27), (var_32 * var_28), (var_32 * var_29), 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, (var_30 * var_27), (var_30 * var_28), (var_30 * var_29), 0, 0, 0], [0, 0, 0, 0, 0, 0, (var_31 * var_27), (var_31 * var_28), (var_31 * var_29), 0, 0, 0], [0, 0, 0, 0, 0, 0, (var_32 * var_27), (var_32 * var_28), (var_32 * var_29), 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, (var_30 * var_27), (var_30 * var_28), (var_30 * var_29)], [0, 0, 0, 0, 0, 0, 0, 0, 0, (var_31 * var_27), (var_31 * var_28), (var_31 * var_29)], [0, 0, 0, 0, 0, 0, 0, 0, 0, (var_32 * var_27), (var_32 * var_28), (var_32 * var_29)]])
+    return var_33
+var_34 = func
 
 class Struct:
     def __init__(self, E, R, T, poissons_ratio, density):
@@ -39,38 +75,39 @@ class Struct:
         return (self.E / (2 * (1 + self.poissons_ratio)))
     def getA(self, ):
     
-        return ((0.25 * math.pi) * (math.pow(exp=2, base=(2 * self.R)) - math.pow(exp=2, base=((2 * self.R) - (2 * self.T)))))
+        return ((0.25 * math.pi) * (math.pow(base=(2 * self.R), exp=2) - math.pow(base=((2 * self.R) - (2 * self.T)), exp=2)))
     def getRInside(self, ):
     
         return (self.R - self.T)
     def getI(self, ):
     
-        return (((math.pow(base=self.R, exp=4) - math.pow(exp=4, base=self.getRInside())) * math.pi) / 4)
+        return (((math.pow(base=self.R, exp=4) - math.pow(base=self.getRInside(), exp=4)) * math.pi) / 4)
 
 
-var_9 = Struct
+var_35 = Struct
 
 class Struct:
     def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
 
-    def get_local_element_stiffness_matrix(self, var_10, var_11):
-        var_12 = var_10[self.node1]
-        var_13 = var_10[self.node2]
-        var_14 = var_8(var_4=var_13, var_3=var_12)
-        var_15 = math.pow(exp=3, base=var_14)
-        var_16 = (2 * var_11.getI())
-        var_17 = (var_11.E * var_11.getA())
-        var_18 = (var_11.getG() * var_16)
-        var_19 = (var_18 / var_14)
-        var_20 = (var_17 / var_14)
-        var_21 = (var_11.getI() * var_11.E)
-        var_22 = (var_21 / var_15)
-        return [[var_20, 0, 0, 0, 0, 0, -var_20, 0, 0, 0, 0, 0], [0, (12 * var_22), 0, 0, 0, (6 * var_22), 0, (-12 * var_22), 0, 0, 0, (6 * var_22)], [0, 0, (12 * var_22), 0, (-6 * var_22), 0, 0, 0, (-12 * var_22), 0, (-6 * var_22), 0], [0, 0, 0, var_19, 0, 0, 0, 0, 0, -var_19, 0, 0], [0, 0, (-6 * var_22), 0, (4 * var_22), 0, 0, 0, (6 * var_22), 0, (2 * var_22), 0], [0, (6 * var_22), 0, 0, 0, (4 * var_22), 0, (-6 * var_22), 0, 0, 0, (2 * var_22)], [-var_20, 0, 0, 0, 0, 0, var_20, 0, 0, 0, 0, 0], [0, (-12 * var_22), 0, 0, 0, (-6 * var_22), 0, (12 * var_22), 0, 0, 0, (-6 * var_22)], [0, 0, (-12 * var_22), 0, (6 * var_22), 0, 0, 0, (12 * var_22), 0, (6 * var_22), 0], [0, 0, 0, -var_19, 0, 0, 0, 0, 0, var_19, 0, 0], [0, 0, (-6 * var_22), 0, (2 * var_22), 0, 0, 0, (6 * var_22), 0, (4 * var_22), 0], [0, (6 * var_22), 0, 0, 0, (2 * var_22), 0, (-6 * var_22), 0, 0, 0, (4 * var_22)]]
+    def get_local_element_stiffness_matrix(self, var_36, var_37):
+        var_38 = var_36[self.node1]
+        var_39 = var_36[self.node2]
+        var_40 = var_9(var_4=var_38, var_5=var_39)
+        var_41 = math.pow(exp=3, base=var_40)
+        var_42 = (2 * var_37.getI())
+        var_43 = (var_37.E * var_37.getA())
+        var_44 = (var_37.getG() * var_42)
+        var_45 = (var_44 / var_40)
+        var_46 = (var_43 / var_40)
+        var_47 = (var_37.getI() * var_37.E)
+        var_48 = (var_47 / var_41)
+        var_49 = np.matrix([[var_46, 0, 0, 0, 0, 0, -var_46, 0, 0, 0, 0, 0], [0, (12 * var_48), 0, 0, 0, (6 * var_48), 0, (-12 * var_48), 0, 0, 0, (6 * var_48)], [0, 0, (12 * var_48), 0, (-6 * var_48), 0, 0, 0, (-12 * var_48), 0, (-6 * var_48), 0], [0, 0, 0, var_45, 0, 0, 0, 0, 0, -var_45, 0, 0], [0, 0, (-6 * var_48), 0, (4 * var_48), 0, 0, 0, (6 * var_48), 0, (2 * var_48), 0], [0, (6 * var_48), 0, 0, 0, (4 * var_48), 0, (-6 * var_48), 0, 0, 0, (2 * var_48)], [-var_46, 0, 0, 0, 0, 0, var_46, 0, 0, 0, 0, 0], [0, (-12 * var_48), 0, 0, 0, (-6 * var_48), 0, (12 * var_48), 0, 0, 0, (-6 * var_48)], [0, 0, (-12 * var_48), 0, (6 * var_48), 0, 0, 0, (12 * var_48), 0, (6 * var_48), 0], [0, 0, 0, -var_45, 0, 0, 0, 0, 0, var_45, 0, 0], [0, 0, (-6 * var_48), 0, (2 * var_48), 0, 0, 0, (6 * var_48), 0, (4 * var_48), 0], [0, (6 * var_48), 0, 0, 0, (2 * var_48), 0, (-6 * var_48), 0, 0, 0, (4 * var_48)]])
+        return var_49
 
 
-var_23 = Struct
+var_50 = Struct
 
 class Struct:
     def __init__(self, nodes, elements):
@@ -82,8 +119,8 @@ class Struct:
         return self.elements[0].node1
 
 
-var_24 = Struct
-var_25 = var_23(node2=2, node1=1)
-var_26 = var_24(elements={1: var_2(x=1, z=3, y=2)}, nodes=[var_23(node1=1, node2=2)])
+var_51 = Struct
+var_52 = var_35(R=1, density=1, T=1, E=2, poissons_ratio=0.3)
+var_53 = var_51(nodes={1: var_3(y=2, z=3, x=1)}, elements=[var_50(node1=1, node2=2)])
 
     

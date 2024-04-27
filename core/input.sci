@@ -48,5 +48,15 @@ struct Point {
 let p = Point(y=2, x=1)
 print([p.x, p.y])
 
+let matrix: mat[3, 1] = #[
+    1, 2, 3
+]
 
+unit m
+unit kg
+unit s
 
+const N = kg*m/s^2
+
+let a = 1N
+a = 3N

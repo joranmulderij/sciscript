@@ -67,6 +67,7 @@ pub enum ExprUnchecked {
             StructFieldKind,
         )>,
     ),
+    Matrix(Vec<Vec<ExprUnchecked>>),
 }
 
 #[derive(Debug)]
@@ -103,6 +104,7 @@ pub enum Expr {
     Struct(Vec<(String, Option<Expr>, StructFieldKind)>),
     GetProperty(Box<Expr>, String),
     Map(Vec<(Expr, Expr)>),
+    Matrix(Vec<Vec<Expr>>),
 }
 
 #[derive(Debug)]
