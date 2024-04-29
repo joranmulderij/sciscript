@@ -124,15 +124,14 @@ fn check_expr_types(
                     }),
                     param,
                 ) => {
-                    let names = arguments_match_parameters(
-                        &vec![param.clone()],
-                        &HashMap::new(),
+                    let name_mappings = arguments_match_parameters(
+                        vec![(param.clone(), expr2)],
+                        HashMap::new(),
                         &parameters,
                     )?;
-                    let args = names.into_iter().zip(vec![expr2]).collect::<Vec<_>>();
                     let mut deps = dep1;
                     deps.extend(dep2);
-                    let expr = Expr::FunctionCall(Box::new(expr1), args);
+                    let expr = Expr::FunctionCall(Box::new(expr1), name_mappings);
                     Ok((expr, *ret.clone(), deps))
                 }
                 _ => Err("Type mismatch in sequencial expression".to_string()),
@@ -390,31 +389,31 @@ fn check_expr_types(
                         "{:?} {:?} {:?}",
                         parameters, positional_arguments, named_arguments
                     );
-                    let mut exprs: Vec<Expr> = Vec::new();
                     let positional_arguments = positional_arguments
                         .into_iter()
-                        .map(|arg| -> Result<Type, String> {
+                        .map(|arg| {
                             let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
                             deps.extend(dep);
-                            exprs.push(expr);
-                            Ok(type_)
+                            Ok((type_, expr))
                         })
-                        .collect::<Result<_, _>>()?;
-                    let mut new_named_arguments: HashMap<String, Type> = HashMap::new();
+                        .collect::<Result<_, String>>()?;
+                    let mut new_named_arguments: HashMap<String, (Type, Expr)> = HashMap::new();
                     for (name, arg) in named_arguments {
                         let (expr, type_, dep) = check_expr_types(arg, &mut type_context)?;
                         deps.extend(dep);
-                        exprs.push(expr);
-                        new_named_arguments.insert(name, type_);
+                        new_named_arguments.insert(name, (type_, expr));
                     }
-                    let names = arguments_match_parameters(
-                        &positional_arguments,
-                        &new_named_arguments,
+                    let name_mappings = arguments_match_parameters(
+                        positional_arguments,
+                        new_named_arguments,
                         &parameters,
                     )?;
-                    let args = names.into_iter().zip(exprs).collect::<Vec<_>>();
 
-                    Ok((Expr::FunctionCall(Box::new(function), args), *ret, deps))
+                    Ok((
+                        Expr::FunctionCall(Box::new(function), name_mappings),
+                        *ret,
+                        deps,
+                    ))
                 }
                 _ => Err("Type mismatch in function call".to_string()),
             }
@@ -670,30 +669,25 @@ fn handle_bin_op(
 }
 
 pub fn arguments_match_parameters(
-    positional_arguments: &Vec<Type>,
-    named_arguments: &HashMap<String, Type>,
+    mut positional_arguments: Vec<(Type, Expr)>,
+    mut named_arguments: HashMap<String, (Type, Expr)>,
     parameters: &Vec<(String, Type, bool)>,
-) -> Result<Vec<String>, String> {
-    println!(
-        "{:?} {:?} {:?}",
-        positional_arguments, named_arguments, parameters
-    );
-    let mut named_arguments = named_arguments.clone();
-    let mut positional_arguments = positional_arguments.iter();
-    let mut names: Vec<String> = Vec::new();
+) -> Result<Vec<(String, Expr)>, String> {
+    let mut name_mapping: Vec<(String, Expr)> = Vec::new();
     for (name, type_, required) in parameters.iter() {
-        if let Some(arg) = positional_arguments.next() {
-            if !type_.can_be_assigned_to(arg) {
-                println!("arg: {:?} type: {:?}", arg, type_);
+        if !positional_arguments.is_empty() {
+            let (arg_type, expr) = positional_arguments.remove(0);
+            if !type_.can_be_assigned_to(&arg_type) {
+                println!("arg: {:?} type: {:?}", arg_type, type_);
                 return Err("Type mismatch in function call".to_string());
             } else {
-                names.push(name.clone());
+                name_mapping.push((name.clone(), expr));
             }
-        } else if let Some(arg) = named_arguments.remove(name) {
-            if !type_.can_be_assigned_to(&arg) {
+        } else if let Some((arg_type, expr)) = named_arguments.remove(name) {
+            if !type_.can_be_assigned_to(&arg_type) {
                 return Err("Type mismatch in function call".to_string());
             } else {
-                names.push(name.clone());
+                name_mapping.push((name.clone(), expr));
             }
         } else {
             if *required {
@@ -701,8 +695,8 @@ pub fn arguments_match_parameters(
             }
         }
     }
-    if named_arguments.is_empty() && positional_arguments.next().is_none() {
-        Ok(names)
+    if named_arguments.is_empty() && positional_arguments.is_empty() {
+        Ok(name_mapping)
     } else {
         Err("Extra arguments in function call".to_string())
     }

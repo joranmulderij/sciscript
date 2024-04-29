@@ -136,4 +136,7 @@ let props = ElementProperties(E = 1, R = 2, T = 1, poissons_ratio = 0.3, density
 
 let model = Model(nodes = {1: Node(1,2,3)}, elements = [Element(1,2)])
 
+let node = model.nodes[1]
+
+print(node.is_fixed_x)
 
