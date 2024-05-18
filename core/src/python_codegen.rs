@@ -1,7 +1,7 @@
 use core::panic;
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Line, Op, StructFieldKind};
+use crate::ast::{Expr, Line, Op, ReAssignmentExtension, StructFieldKind};
 
 pub fn generate_python_code(ast: Vec<Line>) -> String {
     let mut python_code = String::new();
@@ -270,9 +270,27 @@ impl Line {
     fn to_python_code(&self) -> String {
         let (pl, line) = match self {
             Line::Expr(expr) => expr.to_python_code(),
-            Line::Assign(id, expr, _) => {
+            Line::NewAssignment(id, expr, _) => {
                 let (pl, expr) = expr.to_python_code();
                 (pl, format!("{} = {}", id, expr))
+            }
+            Line::ReAssignment(id, extensions, expr) => {
+                let mut pl = id.clone();
+                let extensions = extensions
+                    .iter()
+                    .map(|ext| match ext {
+                        ReAssignmentExtension::Index(index) => {
+                            let (pl_, index) = index.to_python_code();
+                            pl.push_str(&pl_);
+                            format!("[{}]", index)
+                        }
+                        ReAssignmentExtension::Property(field) => format!(".{}", field),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("");
+                let (pl_, expr) = expr.to_python_code();
+                pl.push_str(&pl_);
+                (pl, format!("{}{} = {}", id, extensions, expr))
             }
         };
         if pl.is_empty() {
@@ -283,20 +301,15 @@ impl Line {
     }
 
     fn to_python_code_return(&self) -> (String, String) {
-        let (pl, line, expr) = match self {
-            Line::Expr(expr) => {
-                let (pl, expr) = expr.to_python_code();
-                (pl, "".to_string(), expr)
+        match &self {
+            Line::Expr(_) => {
+                let line = self.to_python_code();
+                ("".to_string(), line)
             }
-            Line::Assign(id, expr, _) => {
-                let (pl, expr) = expr.to_python_code();
-                (pl, format!("{} = {}", id.clone(), expr), id.clone())
+            Line::NewAssignment(_, _, _) | Line::ReAssignment(_, _, _) => {
+                let line = self.to_python_code();
+                (line, "None".to_string())
             }
-        };
-        if pl.is_empty() {
-            (line, expr)
-        } else {
-            (pl + "\n" + &line, expr)
         }
     }
 }

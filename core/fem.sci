@@ -123,20 +123,32 @@ struct Element {
     }
 }
 
+struct Displacement {
+    x: num
+    y: num
+    z: num
+    mx: num
+    my: num
+    mz: num
+}
+
+struct Results {
+    displacements: map[num, Displacement]
+}
+
 struct Model {
     nodes: map[num, Node]
     elements: list[Element]
 
-    fn f() {
-        elements[0].node1
+    fn solve(): Results {
+        
     }
 }
 
 let props = ElementProperties(E = 1, R = 2, T = 1, poissons_ratio = 0.3, density = 1)
 
-let model = Model(nodes = {1: Node(1,2,3)}, elements = [Element(1,2)])
+let model = Model(nodes = {1: Node(0,0,0,is_fixed_m=true), 2: Node(1,0,0)}, elements = [Element(1,2)])
 
 let node = model.nodes[1]
 
 print(node.is_fixed_x)
-

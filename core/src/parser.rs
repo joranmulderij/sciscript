@@ -5,7 +5,8 @@ use pest::pratt_parser::PrattParser;
 use pest::{iterators::Pairs, Parser};
 
 use crate::ast::{
-    AssignmentType, ExprUnchecked, LineUnchecked, Op, StructFieldKind, TypeAnnotationUnchecked,
+    ExprUnchecked, LineUnchecked, NewAssignmentModifier, Op, ReAssignmentExtensionUnchecked,
+    StructFieldKind, TypeAnnotationUnchecked,
 };
 use crate::types::NumberConstant;
 
@@ -36,8 +37,30 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
             let expr = pair.into_inner().next().unwrap();
             LineUnchecked::Expr(build_expr_ast(expr))
         }
-        Rule::normal_assignment_line | Rule::const_assignment_line | Rule::let_assignment_line => {
+        Rule::reassignment_line => {
             let mut inner = pair.into_inner();
+            let var = inner.next().unwrap().as_str().to_string();
+            let extensions = inner.next().unwrap();
+            let extensions = extensions
+                .into_inner()
+                .map(|ext| match ext.as_rule() {
+                    Rule::index => {
+                        let index = ext.into_inner().next().unwrap();
+                        ReAssignmentExtensionUnchecked::Index(build_expr_ast(index))
+                    }
+                    Rule::propget => {
+                        let prop = ext.into_inner().next().unwrap().as_str().to_string();
+                        ReAssignmentExtensionUnchecked::PropGet(prop)
+                    }
+                    _ => unreachable!(),
+                })
+                .collect::<Vec<_>>();
+            let expr = inner.next().unwrap();
+            LineUnchecked::ReAssignment(var, extensions, build_expr_ast(expr))
+        }
+        Rule::new_assignment_line => {
+            let mut inner = pair.into_inner();
+            let modifier = inner.next().unwrap().as_rule();
             let var = inner.next().unwrap().as_str().to_string();
             let optional_type_annotation = inner.next().unwrap();
             let type_annotation = match optional_type_annotation.into_inner().next() {
@@ -45,13 +68,17 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
                 None => None,
             };
             let expr = inner.next().unwrap();
-            let assignment_type = match rule {
-                Rule::normal_assignment_line => crate::ast::AssignmentType::Normal,
-                Rule::let_assignment_line => crate::ast::AssignmentType::Let,
-                Rule::const_assignment_line => crate::ast::AssignmentType::Const,
+            let assignment_type = match modifier {
+                Rule::let_ => crate::ast::NewAssignmentModifier::Let,
+                Rule::const_ => crate::ast::NewAssignmentModifier::Const,
                 _ => unreachable!(),
             };
-            LineUnchecked::Assign(var, type_annotation, build_expr_ast(expr), assignment_type)
+            LineUnchecked::NewAssignment(
+                var,
+                type_annotation,
+                build_expr_ast(expr),
+                assignment_type,
+            )
         }
         Rule::unitdef_line => {
             let unit = pair.into_inner().next().unwrap().as_str().to_string();
@@ -68,7 +95,7 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
             };
             let block = inner.next().unwrap();
             let args = parse_args(args);
-            LineUnchecked::Assign(
+            LineUnchecked::NewAssignment(
                 name,
                 None,
                 ExprUnchecked::Lambda(
@@ -76,7 +103,7 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
                     Box::new(ExprUnchecked::Block(parse_lines(block.into_inner()))),
                     type_annotation,
                 ),
-                AssignmentType::Let,
+                NewAssignmentModifier::Let,
             )
         }
         Rule::struct_line => {
@@ -111,7 +138,7 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
                     Rule::function_line => {
                         let line = parse_line(line).unwrap();
                         match line {
-                            LineUnchecked::Assign(name, None, expr, _) => {
+                            LineUnchecked::NewAssignment(name, None, expr, _) => {
                                 (name, None, Some(expr), StructFieldKind::Method)
                             }
                             _ => unreachable!(),
@@ -121,11 +148,11 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
                 };
                 fields.push(field);
             }
-            LineUnchecked::Assign(
+            LineUnchecked::NewAssignment(
                 name,
                 None,
                 ExprUnchecked::Struct(fields),
-                AssignmentType::Let,
+                NewAssignmentModifier::Let,
             )
         }
         Rule::EOI => return None,

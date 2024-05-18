@@ -49,12 +49,12 @@ variable = @{
     !(keyword ~ !(ASCII_ALPHA | DECIMAL_NUMBER | "_")) ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHA | DECIMAL_NUMBER | "_")*
 }
 
-assignment_line          = _{ const_assignment_line | let_assignment_line | normal_assignment_line }
-normal_assignment_line   =  { variable ~ no_type_annotation ~ "=" ~ expr }
-let_assignment_line      =  { let ~ variable ~ optional_type_annotation ~ "=" ~ expr }
-const_assignment_line    =  { const ~ variable ~ optional_type_annotation ~ "=" ~ expr }
+assignment_line          = _{ new_assignment_line | reassignment_line }
+reassignment_line        =  { variable ~ assignment_extensions ~ "=" ~ expr }
+assignment_extensions    =  { (index | propget)* }
+new_assignment_line      =  { new_variable_modifier ~ variable ~ optional_type_annotation ~ "=" ~ expr }
+new_variable_modifier    = _{ let_ | const_ }
 optional_type_annotation =  { (":" ~ type_annotation)? }
-no_type_annotation       =  { "" }
 
 function_line = { "fn" ~ variable ~ "(" ~ parameters ~ ")" ~ optional_type_annotation ~ block }
 
@@ -86,10 +86,10 @@ else        = _{ "else" }
 for         = _{ "for" }
 in          = _{ "in" }
 unit        = _{ "unit" }
-const       = _{ "const" }
-let         = _{ "let" }
+const_      =  { "const" }
+let_        =  { "let" }
 struct      = _{ "struct" }
 
-keyword = _{ if | else | for | unit | const | let | true_ | false_ | null | struct }
+keyword = _{ if | else | for | unit | const_ | let_ | true_ | false_ | null | struct }
 
 WHITESPACE = _{ " " }

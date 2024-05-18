@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     ast::{
-        AssignmentType, Expr, ExprUnchecked, Line, LineUnchecked, Op, StructFieldKind,
-        TypeAnnotationUnchecked,
+        Expr, ExprUnchecked, Line, LineUnchecked, NewAssignmentModifier, Op, ReAssignmentExtension,
+        StructFieldKind, TypeAnnotationUnchecked,
     },
     types::{FunctionProfile, NumberConstant, Type, TypeContext, TypeProfile},
     units::{Unit, UnitSet},
@@ -24,43 +24,55 @@ pub fn check_types(
                 deps.extend(dep);
                 type_
             }
-            LineUnchecked::Assign(var, type_annotation, expr, assignment_type) => {
+            LineUnchecked::ReAssignment(var, extensions, expr) => {
+                let (expr, expr_type, dep) = check_expr_types(expr, type_context)?;
+                deps.extend(dep);
+                let mut new_extensions: Vec<ReAssignmentExtension> = Vec::new();
+                let (id, type_, const_) = match type_context.get_variable(&var) {
+                    Some((id, type_, const_)) => (id.clone(), type_.clone(), *const_),
+                    None => return Err("Variable not found in scope".to_string()),
+                };
+                let mut type_ = type_.clone();
+                for extension in extensions {
+                    type_ = match extension {
+                        crate::ast::ReAssignmentExtensionUnchecked::PropGet(name) => {
+                            new_extensions.push(ReAssignmentExtension::Property(name.clone()));
+                            get_property_check_types(type_, &name)?
+                        }
+                        crate::ast::ReAssignmentExtensionUnchecked::Index(expr) => {
+                            let (expr, type_index, dep) = check_expr_types(expr, type_context)?;
+                            deps.extend(dep);
+                            new_extensions.push(ReAssignmentExtension::Index(expr));
+                            index_check_types(type_, type_index)?
+                        }
+                    };
+                }
+                if !type_.can_be_assigned_to(&expr_type) {
+                    return Err("Type mismatch in assignment".to_string());
+                }
+                if const_ {
+                    return Err("Cannot reassign const variable".to_string());
+                }
+                new_ast.push(Line::ReAssignment(id.clone(), new_extensions, expr));
+                expr_type
+            }
+            LineUnchecked::NewAssignment(var, type_annotation, expr, assignment_type) => {
                 let (expr, type2, dep) = check_expr_types(expr, type_context)?;
                 deps.extend(dep);
-                let id: String = match assignment_type {
-                    AssignmentType::Normal => {
-                        if let Some((id, type1, const_)) = type_context.get_variable(&var) {
-                            if !type1.can_be_assigned_to(&type2) {
-                                println!("{:?} {:?}", type1, type2);
-                                return Err("Type mismatch in assignment".to_string());
-                            }
-                            if *const_ {
-                                return Err("Cannot reassign const variable".to_string());
-                            }
-                            id.clone()
-                        } else {
-                            let id = type_context.insert_variable(var, None, type2.clone(), false);
-                            id
-                        }
+                let const_ = matches!(assignment_type, NewAssignmentModifier::Const);
+                let type_ = if let Some(type_annotation) = type_annotation {
+                    println!("{:?}", type_annotation);
+                    let type_ = check_type_annotation_types(type_annotation, type_context)?;
+                    if !type_.can_be_assigned_to(&type2) {
+                        println!("{:?} --- {:?}", type_, type2);
+                        return Err("Type mismatch in assignment".to_string());
                     }
-                    AssignmentType::Const | AssignmentType::Let => {
-                        let const_ = matches!(assignment_type, AssignmentType::Const);
-                        let type_ = if let Some(type_annotation) = type_annotation {
-                            println!("{:?}", type_annotation);
-                            let type_ = check_type_annotation_types(type_annotation, type_context)?;
-                            if !type_.can_be_assigned_to(&type2) {
-                                println!("{:?} --- {:?}", type_, type2);
-                                return Err("Type mismatch in assignment".to_string());
-                            }
-                            type_
-                        } else {
-                            type2.clone()
-                        };
-                        let id = type_context.insert_variable(var, None, type_, const_);
-                        id
-                    }
+                    type_
+                } else {
+                    type2.clone()
                 };
-                new_ast.push(Line::Assign(id, expr, assignment_type));
+                let id = type_context.insert_variable(var, None, type_, const_);
+                new_ast.push(Line::NewAssignment(id, expr, assignment_type));
                 type2
             }
             LineUnchecked::UnitDef(name) => {
@@ -283,17 +295,7 @@ fn check_expr_types(
         }
         ExprUnchecked::GetProperty(_expr, _property) => {
             let (expr, type_, dep) = check_expr_types(*_expr, &mut type_context)?;
-            let type_ = match type_ {
-                Type::Struct(fields) => {
-                    let field = fields.iter().find(|(name, _, _)| name == &_property);
-                    if let Some((_name, type_, _)) = field {
-                        type_.clone()
-                    } else {
-                        return Err("Property not found in struct".to_string());
-                    }
-                }
-                _ => return Err("Type mismatch in get property".to_string()),
-            };
+            let type_ = get_property_check_types(type_, &_property)?;
             Ok((Expr::GetProperty(Box::new(expr), _property), type_, dep))
         }
         ExprUnchecked::List(items) => {
@@ -343,28 +345,7 @@ fn check_expr_types(
             let (expr, type_expr, dep_expr) = check_expr_types(*expr, &mut type_context)?;
             let (index, type_index, dep_index) = check_expr_types(*index, &mut type_context)?;
             println!("{:?} {:?}", type_expr, type_index);
-            let type_ = match (type_expr, type_index) {
-                (Type::List(type_), type_index) => {
-                    if !Type::Number(UnitSet::empty(), None).can_be_assigned_to(&type_index) {
-                        return Err("Type mismatch in index".to_string());
-                    }
-                    *type_
-                }
-                (Type::Type(type_profile, constructor), type_index) => match type_profile {
-                    TypeProfile::Function(fun) => Type::Type(
-                        TypeProfile::Type(Box::new(fun(vec![type_index])?)),
-                        constructor,
-                    ),
-                    TypeProfile::Type(_) => return Err("Type mismatch in index".to_string()),
-                },
-                (Type::Map(key_type, value_type), type_index) => {
-                    if !key_type.can_be_assigned_to(&type_index) {
-                        return Err("Type mismatch in index".to_string());
-                    }
-                    *value_type
-                }
-                _ => return Err("Type mismatch in index".to_string()),
-            };
+            let type_ = index_check_types(type_expr, type_index)?;
             let mut deps = dep_expr;
             deps.extend(dep_index);
             Ok((Expr::Index(Box::new(expr), Box::new(index)), type_, deps))
@@ -517,6 +498,46 @@ fn check_expr_types(
             Ok((Expr::Matrix(new_matrix), type_, deps))
         }
     }
+}
+
+fn index_check_types(type_expr: Type, type_index: Type) -> Result<Type, String> {
+    let type_ = match (type_expr, type_index) {
+        (Type::List(type_), type_index) => {
+            if !Type::Number(UnitSet::empty(), None).can_be_assigned_to(&type_index) {
+                return Err("Type mismatch in index".to_string());
+            }
+            *type_
+        }
+        (Type::Type(type_profile, constructor), type_index) => match type_profile {
+            TypeProfile::Function(fun) => Type::Type(
+                TypeProfile::Type(Box::new(fun(vec![type_index])?)),
+                constructor,
+            ),
+            TypeProfile::Type(_) => return Err("Type mismatch in index".to_string()),
+        },
+        (Type::Map(key_type, value_type), type_index) => {
+            if !key_type.can_be_assigned_to(&type_index) {
+                return Err("Type mismatch in index".to_string());
+            }
+            *value_type
+        }
+        _ => return Err("Type mismatch in index".to_string()),
+    };
+    Ok(type_)
+}
+
+fn get_property_check_types(type_: Type, _property: &String) -> Result<Type, String> {
+    Ok(match type_ {
+        Type::Struct(fields) => {
+            let field = fields.iter().find(|(name, _, _)| name == _property);
+            if let Some((_name, type_, _)) = field {
+                type_.clone()
+            } else {
+                return Err("Property not found in struct".to_string());
+            }
+        }
+        _ => return Err("Type mismatch in get property".to_string()),
+    })
 }
 
 fn check_type_annotation_types(

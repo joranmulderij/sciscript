@@ -9,19 +9,21 @@ use crate::types::NumberConstant;
 #[derive(Debug)]
 pub enum LineUnchecked {
     Expr(ExprUnchecked),
-    Assign(
+    NewAssignment(
         String,
         Option<TypeAnnotationUnchecked>,
         ExprUnchecked,
-        AssignmentType,
+        NewAssignmentModifier,
     ),
+    ReAssignment(String, Vec<ReAssignmentExtensionUnchecked>, ExprUnchecked),
     UnitDef(String),
 }
 
 #[derive(Debug)]
 pub enum Line {
     Expr(Expr),
-    Assign(String, Expr, AssignmentType),
+    NewAssignment(String, Expr, NewAssignmentModifier),
+    ReAssignment(String, Vec<ReAssignmentExtension>, Expr),
 }
 
 #[derive(Debug)]
@@ -121,8 +123,19 @@ pub enum Op {
 }
 
 #[derive(Debug)]
-pub enum AssignmentType {
-    Normal,
+pub enum NewAssignmentModifier {
     Let,
     Const,
+}
+
+#[derive(Debug)]
+pub enum ReAssignmentExtension {
+    Property(String),
+    Index(Expr),
+}
+
+#[derive(Debug)]
+pub enum ReAssignmentExtensionUnchecked {
+    PropGet(String),
+    Index(ExprUnchecked),
 }
