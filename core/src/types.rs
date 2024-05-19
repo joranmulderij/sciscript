@@ -8,6 +8,7 @@ use crate::units::UnitSet;
 #[derive(Debug, Clone)]
 pub enum Type {
     Number(UnitSet, Option<NumberConstant>),
+    Sym(UnitSet),
     Function(FunctionProfile),
     Type(TypeProfile, Option<FunctionProfile>),
     List(Box<Type>),
@@ -140,6 +141,7 @@ impl Type {
             (Self::Bool, Self::Bool) => true,
             (Self::Void, Self::Void) => true,
             (Self::Any, _) => true,
+            (Self::Sym(_), Self::Sym(_)) => true,
             (Self::Struct(fields1), Self::Struct(fields2)) => {
                 fields1.len() == fields2.len()
                     && fields1.iter().zip(fields2.iter()).all(

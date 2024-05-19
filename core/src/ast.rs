@@ -17,6 +17,7 @@ pub enum LineUnchecked {
     ),
     ReAssignment(String, Vec<ReAssignmentExtensionUnchecked>, ExprUnchecked),
     UnitDef(String),
+    SymsDef(String),
 }
 
 #[derive(Debug)]
@@ -107,6 +108,7 @@ pub enum Expr {
     GetProperty(Box<Expr>, String),
     Map(Vec<(Expr, Expr)>),
     Matrix(Vec<Vec<Expr>>),
+    NewSymbol(String),
 }
 
 #[derive(Debug)]

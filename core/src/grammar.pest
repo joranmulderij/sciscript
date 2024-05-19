@@ -2,7 +2,7 @@ entry = _{ SOI ~ lines ~ EOI }
 
 lines = _{ NEWLINE* ~ line ~ (NEWLINE+ ~ line)* ~ NEWLINE* }
 block =  { "{" ~ lines? ~ "}" }
-line  = _{ (unitdef_line | function_line | struct_line | assignment_line | expr_line | comment) ~ comment? }
+line  = _{ (unitdef_line | symsdef_line | function_line | struct_line | assignment_line | expr_line | comment) ~ comment? }
 
 expr_line      =  { expr }
 flexible_expr  = _{ NEWLINE* ~ expr ~ NEWLINE* }
@@ -63,6 +63,7 @@ struct_block         = { "{" ~ NEWLINE* ~ struct_property_line ~ (NEWLINE* ~ str
 struct_property_line = { variable ~ ":" ~ type_annotation ~ ("=" ~ expr)? }
 
 unitdef_line = { unit ~ variable }
+symsdef_line = { syms ~ variable }
 
 comment = _{ "//" ~ (!NEWLINE ~ ANY)* }
 
@@ -86,6 +87,7 @@ else        = _{ "else" }
 for         = _{ "for" }
 in          = _{ "in" }
 unit        = _{ "unit" }
+syms        = _{ "syms" }
 const_      =  { "const" }
 let_        =  { "let" }
 struct      = _{ "struct" }

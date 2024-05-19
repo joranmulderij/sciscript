@@ -84,6 +84,10 @@ fn parse_line(pair: Pair<'_, Rule>) -> Option<LineUnchecked> {
             let unit = pair.into_inner().next().unwrap().as_str().to_string();
             LineUnchecked::UnitDef(unit)
         }
+        Rule::symsdef_line => {
+            let unit = pair.into_inner().next().unwrap().as_str().to_string();
+            LineUnchecked::SymsDef(unit)
+        }
         Rule::function_line => {
             let mut inner = pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();

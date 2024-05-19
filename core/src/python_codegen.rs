@@ -17,6 +17,7 @@ impl Expr {
     fn to_python_code(&self) -> (String, String) {
         match self {
             Expr::Number(n) => ("".to_string(), n.to_string()),
+            Expr::NewSymbol(id) => ("".to_string(), format!("sp.Symbol('{}')", id)),
             Expr::UnaryMinus(expr) => {
                 let code = expr.to_python_code();
                 (code.0, format!("-{}", code.1))

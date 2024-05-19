@@ -116,6 +116,7 @@ pub fn get_std_lib() -> (String, Vec<(String, String, Type)>) {
 import math
 import std_lib as std
 import numpy as np
+import sympy as sp
 "
     .to_string();
     (imports, variables)

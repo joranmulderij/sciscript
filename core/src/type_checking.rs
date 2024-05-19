@@ -30,7 +30,8 @@ pub fn check_types(
                 let mut new_extensions: Vec<ReAssignmentExtension> = Vec::new();
                 let (id, type_, const_) = match type_context.get_variable(&var) {
                     Some((id, type_, const_)) => (id.clone(), type_.clone(), *const_),
-                    None => return Err("Variable not found in scope".to_string()),
+                    // None => return Err("Variable not found in scope".to_string()),
+                    None => return Err(format!("Variable {} not found in scope", var)),
                 };
                 let mut type_ = type_.clone();
                 for extension in extensions {
@@ -80,6 +81,16 @@ pub fn check_types(
                 let type_ =
                     Type::Number(UnitSet::single_unit(unit), Some(NumberConstant::Integer(1)));
                 type_context.insert_variable(name, None, type_.clone(), true);
+                type_
+            }
+            LineUnchecked::SymsDef(name) => {
+                let type_ = Type::Sym(UnitSet::empty());
+                let id = type_context.insert_variable(name.clone(), None, type_.clone(), true);
+                new_ast.push(Line::NewAssignment(
+                    id,
+                    Expr::NewSymbol(name),
+                    NewAssignmentModifier::Const,
+                ));
                 type_
             }
         }
@@ -622,34 +633,9 @@ fn handle_bin_op(
                     Op::Power => Some(const1.pow(&const2)),
                     _ => unreachable!(),
                 },
-                // TODO: Handle floats
                 _ => None,
             };
-            let unit = match op {
-                Op::Multiply => unit1 + unit2,
-                Op::Divide => unit1 - unit2,
-                Op::Add | Op::Subtract | Op::Modulo => {
-                    if unit1 != unit2 {
-                        return Err("Unit mismatch in binary operation".to_string());
-                    } else {
-                        unit1
-                    }
-                }
-                Op::Power => {
-                    if !unit2.is_empty() {
-                        return Err("Unit mismatch in power operation".to_string());
-                    }
-                    let unit = if unit1.is_empty() {
-                        UnitSet::empty()
-                    } else if let Some(NumberConstant::Integer(i)) = c2 {
-                        unit1 * i
-                    } else {
-                        return Err("Unit mismatch in power operation".to_string());
-                    };
-                    unit
-                }
-                _ => unreachable!(),
-            };
+            let unit = get_bin_op_unit(unit1, &op, unit2, c2)?;
             let expr = match const_.clone() {
                 Some(const_) => Expr::Number(const_),
                 _ => Expr::BinOp {
@@ -659,6 +645,19 @@ fn handle_bin_op(
                 },
             };
             (expr, Type::Number(unit, const_))
+        }
+        (
+            Type::Number(unit1, _) | Type::Sym(unit1),
+            Op::Multiply | Op::Divide | Op::Add | Op::Subtract | Op::Modulo | Op::Power,
+            Type::Number(unit2, _) | Type::Sym(unit2),
+        ) => {
+            let unit = get_bin_op_unit(unit1, &op, unit2, None)?;
+            let expr = Expr::BinOp {
+                lhs: Box::new(expr1),
+                op,
+                rhs: Box::new(expr2),
+            };
+            (expr, Type::Sym(unit))
         }
         (Type::Matrix(rows1, cols1, unit1), Op::Multiply, Type::Matrix(rows2, cols2, unit2)) => {
             if cols1 == 1 && cols2 == 1 {
@@ -687,6 +686,39 @@ fn handle_bin_op(
     let mut deps = dep1;
     deps.extend(dep2);
     Ok((expr, type_, deps))
+}
+
+fn get_bin_op_unit(
+    unit1: UnitSet,
+    op: &Op,
+    unit2: UnitSet,
+    c2: Option<NumberConstant>,
+) -> Result<UnitSet, String> {
+    Ok(match *op {
+        Op::Multiply => unit1 + unit2,
+        Op::Divide => unit1 - unit2,
+        Op::Add | Op::Subtract | Op::Modulo => {
+            if unit1 != unit2 {
+                return Err("Unit mismatch in binary operation".to_string());
+            } else {
+                unit1
+            }
+        }
+        Op::Power => {
+            if !unit2.is_empty() {
+                return Err("Unit mismatch in power operation".to_string());
+            }
+            let unit = if unit1.is_empty() {
+                UnitSet::empty()
+            } else if let Some(NumberConstant::Integer(i)) = c2 {
+                unit1 * i
+            } else {
+                return Err("Unit mismatch in power operation".to_string());
+            };
+            unit
+        }
+        _ => unreachable!(),
+    })
 }
 
 pub fn arguments_match_parameters(
