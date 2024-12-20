@@ -1,10 +1,7 @@
-unit m
-let km = 1000m
-10m
 
-let c = 1km
-print(500*c)
+unit m
+print(5000 m)
 
 {
-    print(2)
+    print(5)
 }

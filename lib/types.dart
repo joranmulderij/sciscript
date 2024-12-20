@@ -1,4 +1,5 @@
 import 'package:sciscript_dart/ast2.dart';
+import 'package:sciscript_dart/c_generator.dart';
 import 'package:sciscript_dart/units.dart';
 
 sealed class MyType {
@@ -9,12 +10,15 @@ sealed class MyType {
 
 class NumberType implements MyType {
   final num? constantValue;
-  final UnitSet? units;
+  final UnitSet units;
 
-  NumberType({this.constantValue, this.units});
+  NumberType({this.constantValue, this.units = const UnitSet.empty()});
 
   @override
-  bool isAssignableTo(MyType other) => other is NumberType;
+  bool isAssignableTo(MyType other) =>
+      other is NumberType &&
+      units == other.units &&
+      other.constantValue == null;
 }
 
 class FunctionType implements MyType {
@@ -33,7 +37,9 @@ class FunctionType implements MyType {
 }
 
 class CustomFunctionType extends FunctionType {
-  final String Function(Expr2) customToCFunction;
+  final String Function(
+          Expr2 arg, GeneratorHelper helper, void Function(String) injectScope)
+      customToCFunction;
 
   CustomFunctionType(
       super.returnType, super.argumentType, this.customToCFunction);

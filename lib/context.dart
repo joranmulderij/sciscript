@@ -27,10 +27,20 @@ class Context {
   void popScope() {
     scopes.removeLast();
   }
+
+  @override
+  String toString() {
+    return scopes.toString();
+  }
 }
 
 class Scope {
   Map<String, Variable> variables = {};
+
+  @override
+  String toString() {
+    return variables.toString();
+  }
 }
 
 class Variable {
@@ -41,6 +51,11 @@ class Variable {
   static int _idCounter = 0;
 
   Variable(this.type, this.mutability) : id = 'var${++_idCounter}';
+
+  @override
+  String toString() {
+    return 'Variable($id, $type, $mutability)';
+  }
 }
 
 enum VariableMutability {

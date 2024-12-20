@@ -32,7 +32,7 @@ class ExpressionDefinition extends GrammarDefinition {
       });
   Parser<AssignmentLine1> assignmentLine() => (string('let').myTrim() &
               ref0(identifier) &
-              char('=').trim() &
+              char('=').myTrim() &
               ref0(expr))
           .map((values) {
         return AssignmentLine1(values[1], values[3]);
@@ -44,7 +44,8 @@ class ExpressionDefinition extends GrammarDefinition {
     final builder = ExpressionBuilder<Expr1>();
     builder.primitive(ref0(identifierExpr));
     builder.primitive(ref0(numberExpr));
-    builder.group().wrapper(char('(').trim(), char(')').trim(),
+    builder.primitive(ref0(blockExpr));
+    builder.group().wrapper(char('(').myTrim(), char(')').myTrim(),
         (left, value, right) {
       return value;
     });
@@ -69,12 +70,14 @@ class ExpressionDefinition extends GrammarDefinition {
     return builder.build();
   }
 
-  Parser<NumberExpr1> numberExpr() =>
-      digit().plusString().map((value) => NumberExpr1(num.parse(value)));
+  Parser<NumberExpr1> numberExpr() => digit()
+      .plusString()
+      .map((value) => NumberExpr1(num.parse(value)))
+      .myTrim();
   Parser<IdentifierExpr1> identifierExpr() =>
       ref0(identifier).map((value) => IdentifierExpr1(value));
   Parser<BlockExpr1> blockExpr() =>
-      (char('{').trim() & ref0(lines) & char('}').trim())
+      (char('{').myTrim() & ref0(lines) & char('}').myTrim())
           .map((values) => BlockExpr1(values[1]));
 
   // Tokens

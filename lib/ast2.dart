@@ -43,6 +43,12 @@ class IdentifierExpr2 extends Expr2 {
   IdentifierExpr2(this.name, super.type);
 }
 
+class BlockExpr2 extends Expr2 {
+  final List<Line2> lines;
+
+  BlockExpr2(this.lines, super.type);
+}
+
 class OperatorExpr2 extends Expr2 {
   final Operator2 operator;
   final Expr2 left;

@@ -34,18 +34,19 @@ Line2? typeCheckLine(Line1 line, Context context) {
         context.add(name, variable);
         return AssignmentLine2(name, NumberExpr2(1, numberType));
       }(),
+    FunDefLine1() => throw UnimplementedError(),
   };
 }
 
-List<Expr2> typeCheckExpr(Expr1 expr, Context context) {
+Expr2 typeCheckExpr(Expr1 expr, Context context) {
   final returnType = switch (expr) {
-    NumberExpr1(:final value) => [NumberExpr2(value.toDouble(), NumberType())],
+    NumberExpr1(:final value) => NumberExpr2(value.toDouble(), NumberType()),
     IdentifierExpr1(:final name) => () {
         final variable = context.lookup(name);
         if (variable == null) {
           throw Exception('Undefined variable: $name');
         }
-        return [IdentifierExpr2(name, variable.type)];
+        return IdentifierExpr2(name, variable.type);
       }(),
     OperatorExpr1(:final left, :final operator, :final right) => () {
         final left2 = typeCheckExpr(left, context);
@@ -82,7 +83,7 @@ List<Expr2> typeCheckExpr(Expr1 expr, Context context) {
               NumberType()),
           _ => throw Exception('Operator type mismatch'),
         };
-        return [expr2];
+        return expr2;
       }(),
     FunctionCallExpr1(:final function, :final argument) => () {
         final function2 = typeCheckExpr(function, context);
@@ -108,15 +109,20 @@ List<Expr2> typeCheckExpr(Expr1 expr, Context context) {
             }(),
           _ => throw Exception('Function call type mismatch: $functionType'),
         };
-        return [expr2];
+        return expr2;
       }(),
     BlockExpr1(:final lines) => () {
         context.pushScope();
-        final exprs = lines
+        final lines2 = lines
             .map((line) => typeCheckLine(line, context))
             .whereType<Line2>()
-            .map((line) => line.expr)
             .toList();
+        context.popScope();
+        final returnType = switch (lines2.lastOrNull) {
+          ExprLine2(:final expr) => expr.type,
+          _ => VoidType(),
+        };
+        return BlockExpr2(lines2, returnType);
       }()
   };
   return returnType;

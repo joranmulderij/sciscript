@@ -6,6 +6,9 @@ class ExprLine1 extends Line1 {
   final Expr1 expr;
 
   ExprLine1(this.expr);
+
+  @override
+  String toString() => 'ExprLine1($expr)';
 }
 
 class AssignmentLine1 extends Line1 {
@@ -13,12 +16,18 @@ class AssignmentLine1 extends Line1 {
   final Expr1 expr;
 
   AssignmentLine1(this.identifier, this.expr);
+
+  @override
+  String toString() => 'AssignmentLine1($identifier, $expr)';
 }
 
 class UnitDefLine1 extends Line1 {
   final String name;
 
   UnitDefLine1(this.name);
+
+  @override
+  String toString() => 'UnitDefLine1($name)';
 }
 
 class FunDefLine1 extends Line1 {
@@ -26,6 +35,9 @@ class FunDefLine1 extends Line1 {
   final Expr1 body;
 
   FunDefLine1(this.name, this.body);
+
+  @override
+  String toString() => 'FunDefLine1($name, $body)';
 }
 
 sealed class Expr1 {
@@ -38,12 +50,18 @@ class NumberExpr1 extends Expr1 {
   final num value;
 
   NumberExpr1(this.value);
+
+  @override
+  String toString() => 'NumberExpr1($value)';
 }
 
 class IdentifierExpr1 extends Expr1 {
   final String name;
 
   IdentifierExpr1(this.name);
+
+  @override
+  String toString() => 'IdentifierExpr1($name)';
 }
 
 class FunctionCallExpr1 extends Expr1 {
@@ -51,12 +69,18 @@ class FunctionCallExpr1 extends Expr1 {
   final Expr1 argument;
 
   FunctionCallExpr1(this.function, this.argument);
+
+  @override
+  String toString() => 'FunctionCallExpr1($function, $argument)';
 }
 
 class BlockExpr1 extends Expr1 {
   final List<Line1> lines;
 
   BlockExpr1(this.lines);
+
+  @override
+  String toString() => 'BlockExpr1($lines)';
 }
 
 class OperatorExpr1 extends Expr1 {
@@ -65,6 +89,9 @@ class OperatorExpr1 extends Expr1 {
   final Expr1 right;
 
   OperatorExpr1(this.operator, this.left, this.right);
+
+  @override
+  String toString() => 'OperatorExpr1($operator, $left, $right)';
 }
 
 enum Operator1 {

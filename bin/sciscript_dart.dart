@@ -10,6 +10,7 @@ void main(List<String> arguments) async {
   final file = File('input.sci');
   final input = file.readAsStringSync();
   final ast1 = parse(input);
+  print(ast1);
   final context = Context();
   context.addAll(stdLib);
   final ast2 = typeCheckLines(ast1, context);
