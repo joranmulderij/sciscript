@@ -104,6 +104,7 @@ String _generateCFromType(MyType type, String variableName) {
         final argumentC = _generateCFromType(argumentType, '');
         return '$returnC (*$variableName)($argumentC)';
       }(),
+    AnyType() => throw UnsupportedError('AnyType not supported'),
   };
   return cCode;
 }

@@ -40,7 +40,8 @@ Line2? typeCheckLine(Line1 line, Context context) {
 
 Expr2 typeCheckExpr(Expr1 expr, Context context) {
   final returnType = switch (expr) {
-    NumberExpr1(:final value) => NumberExpr2(value.toDouble(), NumberType()),
+    NumberExpr1(:final value) =>
+      NumberExpr2(value.toDouble(), NumberType(constantValue: value)),
     IdentifierExpr1(:final name) => () {
         final variable = context.lookup(name);
         if (variable == null) {
@@ -54,9 +55,12 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
         // TODO: Unit checking
         final expr2 = switch ((left2.type, operator, right2.type)) {
           (
-            NumberType(constantValue: final constLeft),
+            NumberType(constantValue: final constLeft, units: final unitsLeft),
             _,
-            NumberType(constantValue: final constRight)
+            NumberType(
+              constantValue: final constRight,
+              units: final unitsRight
+            ),
           )
               when constLeft != null && constRight != null =>
             () {
@@ -65,22 +69,68 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
                 Operator1.minus => constLeft - constRight,
                 Operator1.star => constLeft * constRight,
                 Operator1.slash => constLeft / constRight,
-                Operator1.doubleStar => math.pow(constLeft, constRight),
+                Operator1.doubleStar ||
+                Operator1.circumflex =>
+                  math.pow(constLeft, constRight),
+              };
+              final units = switch (operator) {
+                Operator1.plus => unitsLeft == unitsRight
+                    ? unitsLeft
+                    : throw Exception('Unit mismatch'),
+                Operator1.minus => unitsLeft == unitsRight
+                    ? unitsLeft
+                    : throw Exception('Unit mismatch'),
+                Operator1.star => unitsLeft + unitsRight,
+                Operator1.slash => unitsLeft - unitsRight,
+                Operator1.doubleStar ||
+                Operator1.circumflex =>
+                  constRight is int
+                      ? unitsLeft * constRight
+                      : throw Exception('Exponent must be a constant integer'),
               };
               return NumberExpr2(
-                  value.toDouble(), NumberType(constantValue: value));
+                value.toDouble(),
+                NumberType(constantValue: value, units: units),
+              );
             }(),
-          (NumberType(), _, NumberType()) => OperatorExpr2(
-              left2,
-              switch (operator) {
+          (
+            NumberType(units: final unitsLeft),
+            _,
+            NumberType(
+              units: final unitsRight,
+              constantValue: final constRight
+            ),
+          ) =>
+            () {
+              final operator2 = switch (operator) {
                 Operator1.plus => Operator2.plus,
                 Operator1.minus => Operator2.minus,
                 Operator1.star => Operator2.multiply,
                 Operator1.slash => Operator2.divide,
-                Operator1.doubleStar => Operator2.power,
-              },
-              right2,
-              NumberType()),
+                Operator1.doubleStar || Operator1.circumflex => Operator2.power,
+              };
+              final units = switch (operator) {
+                Operator1.plus => unitsLeft == unitsRight
+                    ? unitsLeft
+                    : throw Exception('Unit mismatch'),
+                Operator1.minus => unitsLeft == unitsRight
+                    ? unitsLeft
+                    : throw Exception('Unit mismatch'),
+                Operator1.star => unitsLeft + unitsRight,
+                Operator1.slash => unitsLeft - unitsRight,
+                Operator1.doubleStar || Operator1.circumflex => () {
+                    if (!unitsRight.isEmpty()) {
+                      throw Exception('Exponent cannot have units');
+                    }
+                    if (constRight is int) {
+                      return unitsLeft * constRight;
+                    }
+                    throw Exception('Exponent must be a constant integer');
+                  }(),
+              };
+              return OperatorExpr2(
+                  left2, operator2, right2, NumberType(units: units));
+            }(),
           _ => throw Exception('Operator type mismatch'),
         };
         return expr2;

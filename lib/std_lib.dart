@@ -4,17 +4,17 @@ import 'package:sciscript_dart/types.dart';
 
 final stdLib = <String, Variable>{
   'print': Variable(
-    CustomFunctionType(VoidType(), NumberType(), (arg, helper, injectScope) {
+    CustomFunctionType(VoidType(), AnyType(), (arg, helper, injectScope) {
       final type = arg.type as NumberType;
       print(type.units);
       final unitString = StringBuffer();
       for (final entry in type.units.units.entries) {
-        final unit = entry.key;
+        final unitName = entry.key.name;
         final exponent = entry.value;
         if (exponent == 1) {
-          unitString.write(' $unit');
+          unitString.write(' $unitName');
         } else {
-          unitString.write(' $unit^$exponent');
+          unitString.write(' $unitName^$exponent');
         }
       }
       return 'printf("%f$unitString\\n", ${generateCFromExpr(arg, helper, injectScope)})';

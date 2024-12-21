@@ -7,7 +7,7 @@ class UnitSet {
 
   const UnitSet.empty() : units = const {};
 
-  UnitSet operator *(UnitSet other) {
+  UnitSet operator +(UnitSet other) {
     final newUnits = Map<Unit, int>.from(units);
     for (final entry in other.units.entries) {
       newUnits.update(entry.key, (value) => value + entry.value,
@@ -19,7 +19,7 @@ class UnitSet {
     return UnitSet(newUnits);
   }
 
-  UnitSet operator /(UnitSet other) {
+  UnitSet operator -(UnitSet other) {
     final newUnits = Map<Unit, int>.from(units);
     for (final entry in other.units.entries) {
       newUnits.update(entry.key, (value) => value - entry.value,
@@ -31,13 +31,15 @@ class UnitSet {
     return UnitSet(newUnits);
   }
 
-  UnitSet pow(int power) {
+  UnitSet operator *(int factor) {
     final newUnits = Map<Unit, int>.from(units);
     for (final entry in newUnits.entries) {
-      newUnits[entry.key] = entry.value * power;
+      newUnits[entry.key] = entry.value * factor;
     }
     return UnitSet(newUnits);
   }
+
+  bool isEmpty() => units.isEmpty;
 
   @override
   bool operator ==(Object other) =>

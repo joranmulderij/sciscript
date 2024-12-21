@@ -50,15 +50,18 @@ class ExpressionDefinition extends GrammarDefinition {
       return value;
     });
 
-    builder.group().left(ref0(doubleStar), (left, op, right) {
+    builder.group().left([ref0(doubleStar), ref0(circumflex)].toChoiceParser(),
+        (left, op, right) {
       return OperatorExpr1(op, left, right);
     });
 
-    builder.group().left(ref0(star) | ref0(slash), (left, op, right) {
+    builder.group().left([ref0(star), ref0(slash)].toChoiceParser(),
+        (left, op, right) {
       return OperatorExpr1(op, left, right);
     });
 
-    builder.group().left(ref0(plus) | ref0(minus), (left, op, right) {
+    builder.group().left([ref0(plus), ref0(minus)].toChoiceParser(),
+        (left, op, right) {
       return OperatorExpr1(op, left, right);
     });
 
@@ -88,6 +91,9 @@ class ExpressionDefinition extends GrammarDefinition {
   Parser<Operator1> star() => char('*').map((_) => Operator1.star).myTrim();
   Parser<Operator1> doubleStar() =>
       string('**').map((_) => Operator1.star).myTrim();
+  // ^
+  Parser<Operator1> circumflex() =>
+      char('^').map((_) => Operator1.circumflex).myTrim();
   Parser<Operator1> slash() => char('/').map((_) => Operator1.slash).myTrim();
   Parser<String> lineSeparator() =>
       [newline(), char(';')].toChoiceParser().plusString();

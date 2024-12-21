@@ -100,4 +100,5 @@ enum Operator1 {
   star,
   slash,
   doubleStar,
+  circumflex, // ^
 }

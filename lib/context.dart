@@ -12,8 +12,8 @@ class Context {
     return null;
   }
 
-  void add(String name, Variable type) {
-    scopes.last.variables[name] = type;
+  void add(String name, Variable variable) {
+    scopes.last.variables[name] = variable;
   }
 
   void addAll(Map<String, Variable> variables) {
