@@ -1,7 +1,5 @@
-
-unit m
-print(5000 m^2)
-
-{
-    print(5)
-}
+print({
+    let a = 3
+    a=2
+    print(a*5)
+})

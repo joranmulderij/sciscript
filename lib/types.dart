@@ -52,12 +52,9 @@ class FunctionType extends MyType {
 }
 
 class CustomFunctionType extends FunctionType {
-  final String Function(
-          Expr2 arg, GeneratorHelper helper, void Function(String) injectScope)
-      customToCFunction;
+  final String customFunction;
 
-  CustomFunctionType(
-      super.returnType, super.argumentType, this.customToCFunction);
+  CustomFunctionType(super.returnType, super.argumentType, this.customFunction);
 }
 
 class VoidType extends MyType {

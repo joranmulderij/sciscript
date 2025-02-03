@@ -30,12 +30,20 @@ class ExpressionDefinition extends GrammarDefinition {
       (ref0(unit) & ref0(identifier)).map((values) {
         return UnitDefLine1(values[1]);
       });
-  Parser<AssignmentLine1> assignmentLine() => (string('let').myTrim() &
+  Parser<AssignmentLine1> assignmentLine() =>
+      ([ref0(let), ref0(var_)].toChoiceParser().optional() &
               ref0(identifier) &
               char('=').myTrim() &
               ref0(expr))
           .map((values) {
-        return AssignmentLine1(values[1], values[3]);
+        final keyword = values[0] as String?;
+        final type = switch (keyword) {
+          'let' => AssignmentType1.let,
+          'var' => AssignmentType1.var_,
+          null => AssignmentType1.reassign,
+          _ => throw UnimplementedError(),
+        };
+        return AssignmentLine1(values[1], values[3], type);
       });
   Parser<ExprLine1> exprLine() => ref0(expr).map((expr) => ExprLine1(expr));
 
@@ -98,6 +106,8 @@ class ExpressionDefinition extends GrammarDefinition {
   Parser<String> lineSeparator() =>
       [newline(), char(';')].toChoiceParser().plusString();
   Parser<String> unit() => string('unit').myTrim();
+  Parser<String> let() => string('let').myTrim();
+  Parser<String> var_() => string('var').myTrim();
 }
 
 extension _CustomTrim<R> on Parser<R> {

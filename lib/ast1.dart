@@ -14,11 +14,18 @@ class ExprLine1 extends Line1 {
 class AssignmentLine1 extends Line1 {
   final String identifier;
   final Expr1 expr;
+  final AssignmentType1 type;
 
-  AssignmentLine1(this.identifier, this.expr);
+  AssignmentLine1(this.identifier, this.expr, this.type);
 
   @override
   String toString() => 'AssignmentLine1($identifier, $expr)';
+}
+
+enum AssignmentType1 {
+  let,
+  var_,
+  reassign,
 }
 
 class UnitDefLine1 extends Line1 {
