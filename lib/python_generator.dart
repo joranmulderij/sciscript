@@ -1,28 +1,20 @@
-import 'package:sciscript_dart/ast2.dart';
-import 'package:sciscript_dart/types.dart';
+import 'package:sciscript/ast2.dart';
+import 'package:sciscript/types.dart';
 
 class GeneratorHelper {
   int _counter = 0;
-  final StringBuffer _globalBuffer = StringBuffer();
 
   String generateName() {
     return 'temp${_counter++}';
-  }
-
-  void injectGlobal(String code) {
-    _globalBuffer.writeln(code);
   }
 }
 
 String generatePythonFromLines(List<Line2> lines) {
   final helper = GeneratorHelper();
   final buffer = StringBuffer();
-  buffer.writeln('from collections.abc import Callable');
-  buffer.writeln('from sciscript_python_lib import *');
   for (final line in lines) {
     buffer.write(_generatePythonFromLine(line, helper));
   }
-  buffer.writeln(helper._globalBuffer);
   return buffer.toString();
 }
 
@@ -30,17 +22,18 @@ String _generatePythonFromLine(Line2 line, GeneratorHelper helper) {
   final buffer = StringBuffer();
   final cCode = switch (line) {
     AssignmentLine2(:final identifier, :final expr) => () {
-        final exprCode = generateCFromExpr(expr, helper, buffer.writeln);
+        final exprCode = generateCFromExpr(expr, helper, buffer.write);
         if (expr.type is VoidType) throw UnsupportedError('Void assignment');
         return '$identifier: ${_generatePythonFromType(expr.type)} = $exprCode\n';
       }(),
     // Cast to void to suppress unused value warning
     ExprLine2(:final expr) => () {
-        final exprCode = generateCFromExpr(expr, helper, buffer.writeln);
-        return '$exprCode\n';
+        final exprCode = generateCFromExpr(expr, helper, buffer.write);
+        if (exprCode.isNotEmpty) return '$exprCode\n';
+        return '';
       }(),
   };
-  buffer.writeln(cCode);
+  buffer.write(cCode);
   return buffer.toString();
 }
 
@@ -81,13 +74,19 @@ String generateCFromExpr(
               line.expr.type is! VoidType) {
             final variableName = helper.generateName();
             injectScope(
-                '$variableName: ${_generatePythonFromType(line.expr.type)} = ${generateCFromExpr(line.expr, helper, injectScope)};');
+                '$variableName: ${_generatePythonFromType(line.expr.type)} = ${generateCFromExpr(line.expr, helper, injectScope)}\n');
             return variableName;
           } else {
             injectScope(_generatePythonFromLine(line, helper));
           }
         }
         return '';
+      }(),
+    ArrayExpr2(:final elements) => () {
+        final elementValues = elements
+            .map((element) => generateCFromExpr(element, helper, injectScope))
+            .join(', ');
+        return 'np.array([$elementValues])';
       }(),
   };
   return cCode;
@@ -102,6 +101,7 @@ String _generatePythonFromType(MyType type) {
         final argumentTypeCode = _generatePythonFromType(argumentType);
         return 'Callable[[$argumentTypeCode], $returnTypeCode]';
       }(),
+    ArrayType() => 'np.ndarray',
     AnyType() => throw UnsupportedError('AnyType not supported'),
   };
   return cCode;

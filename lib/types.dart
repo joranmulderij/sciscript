@@ -1,6 +1,6 @@
-import 'package:sciscript_dart/ast2.dart';
-import 'package:sciscript_dart/c_generator.dart';
-import 'package:sciscript_dart/units.dart';
+import 'package:sciscript/ast2.dart';
+import 'package:sciscript/c_generator.dart';
+import 'package:sciscript/units.dart';
 
 sealed class MyType {
   const MyType();
@@ -36,6 +36,24 @@ class NumberType extends MyType {
   }
 }
 
+class ArrayType extends MyType {
+  final MyType elementType;
+  final int? length;
+
+  ArrayType(this.elementType, this.length);
+
+  @override
+  bool _isAssignableTo(MyType other) {
+    if (other is! ArrayType) return false;
+    if (length != null && other.length != null && length != other.length) {
+      return false;
+    }
+    if (length == null && other.length != null) return false;
+    if (!elementType._isAssignableTo(other.elementType)) return false;
+    return true;
+  }
+}
+
 class FunctionType extends MyType {
   final MyType returnType;
   final MyType argumentType;
@@ -49,12 +67,6 @@ class FunctionType extends MyType {
     if (!argumentType._isAssignableTo(other.argumentType)) return false;
     return true;
   }
-}
-
-class CustomFunctionType extends FunctionType {
-  final String customFunction;
-
-  CustomFunctionType(super.returnType, super.argumentType, this.customFunction);
 }
 
 class VoidType extends MyType {

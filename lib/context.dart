@@ -1,4 +1,5 @@
-import 'package:sciscript_dart/types.dart';
+import 'package:sciscript/libraries/library.dart';
+import 'package:sciscript/types.dart';
 
 class Context {
   List<Scope> scopes = [Scope()];
@@ -18,6 +19,10 @@ class Context {
 
   void addAll(Map<String, Variable> variables) {
     scopes.last.variables.addAll(variables);
+  }
+
+  void loadLibrary(Library library) {
+    addAll(library.scope);
   }
 
   void pushScope() {
@@ -47,10 +52,12 @@ class Variable {
   final String id;
   final MyType type;
   final VariableMutability mutability;
+  final String? pythonName;
 
   static int _idCounter = 0;
 
-  Variable(this.type, this.mutability) : id = 'var${++_idCounter}';
+  Variable(this.type, this.mutability, {this.pythonName})
+      : id = 'var${++_idCounter}';
 
   @override
   String toString() {

@@ -1,5 +1,5 @@
 import 'package:petitparser/reflection.dart';
-import 'package:sciscript_dart/parser.dart';
+import 'package:sciscript/parser.dart';
 import 'package:test/test.dart';
 
 void main() {

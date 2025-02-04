@@ -1,4 +1,4 @@
-import 'package:sciscript_dart/types.dart';
+import 'package:sciscript/types.dart';
 
 sealed class Line2 {
   const Line2();
@@ -47,6 +47,12 @@ class BlockExpr2 extends Expr2 {
   final List<Line2> lines;
 
   BlockExpr2(this.lines, super.type);
+}
+
+class ArrayExpr2 extends Expr2 {
+  final List<Expr2> elements;
+
+  ArrayExpr2(this.elements, super.type);
 }
 
 class OperatorExpr2 extends Expr2 {

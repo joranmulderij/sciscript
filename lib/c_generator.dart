@@ -1,5 +1,5 @@
-// import 'package:sciscript_dart/ast2.dart';
-// import 'package:sciscript_dart/types.dart';
+// import 'package:sciscript/ast2.dart';
+// import 'package:sciscript/types.dart';
 
 // class GeneratorHelper {
 //   int _counter = 0;

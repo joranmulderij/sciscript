@@ -1,5 +1,2 @@
-print({
-    let a = 3
-    a=2
-    print(a*5)
-})
+let a = [1]
+print(a)

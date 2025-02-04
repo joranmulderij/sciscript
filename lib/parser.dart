@@ -1,5 +1,5 @@
 import 'package:petitparser/petitparser.dart';
-import 'package:sciscript_dart/ast1.dart';
+import 'package:sciscript/ast1.dart';
 
 List<Line1> parse(String input) {
   final parser = ExpressionDefinition().build();
@@ -53,6 +53,7 @@ class ExpressionDefinition extends GrammarDefinition {
     builder.primitive(ref0(identifierExpr));
     builder.primitive(ref0(numberExpr));
     builder.primitive(ref0(blockExpr));
+    builder.primitive(ref0(arrayExpr));
     builder.group().wrapper(char('(').myTrim(), char(')').myTrim(),
         (left, value, right) {
       return value;
@@ -90,6 +91,12 @@ class ExpressionDefinition extends GrammarDefinition {
   Parser<BlockExpr1> blockExpr() =>
       (char('{').myTrim() & ref0(lines) & char('}').myTrim())
           .map((values) => BlockExpr1(values[1]));
+  Parser<ArrayExpr1> arrayExpr() => (ref0(openingBracket) &
+          ref0(expr).starSeparated(ref0(comma)) &
+          ref0(comma).optional() &
+          ref0(closingBracket))
+      .map((values) =>
+          ArrayExpr1((values[1] as SeparatedList<Expr1, void>).elements));
 
   // Tokens
   Parser<String> identifier() =>
@@ -99,7 +106,7 @@ class ExpressionDefinition extends GrammarDefinition {
   Parser<Operator1> star() => char('*').map((_) => Operator1.star).myTrim();
   Parser<Operator1> doubleStar() =>
       string('**').map((_) => Operator1.star).myTrim();
-  // ^
+  Parser<void> comma() => char(',').myTrim();
   Parser<Operator1> circumflex() =>
       char('^').map((_) => Operator1.circumflex).myTrim();
   Parser<Operator1> slash() => char('/').map((_) => Operator1.slash).myTrim();
@@ -108,6 +115,11 @@ class ExpressionDefinition extends GrammarDefinition {
   Parser<String> unit() => string('unit').myTrim();
   Parser<String> let() => string('let').myTrim();
   Parser<String> var_() => string('var').myTrim();
+
+  Parser<void> openingBracket() => char('[').myTrim();
+  Parser<void> closingBracket() => char(']').myTrim();
+  Parser<void> openingParenthesis() => char('(').myTrim();
+  Parser<void> closingParenthesis() => char(')').myTrim();
 }
 
 extension _CustomTrim<R> on Parser<R> {

@@ -1,10 +1,10 @@
-import 'package:sciscript_dart/ast1.dart';
-import 'package:sciscript_dart/ast2.dart';
-import 'package:sciscript_dart/context.dart';
-import 'package:sciscript_dart/types.dart';
+import 'package:sciscript/ast1.dart';
+import 'package:sciscript/ast2.dart';
+import 'package:sciscript/context.dart';
+import 'package:sciscript/types.dart';
 import 'dart:math' as math;
 
-import 'package:sciscript_dart/units.dart';
+import 'package:sciscript/units.dart';
 
 List<Line2> typeCheckLines(List<Line1> lines, Context context) {
   return lines
@@ -47,7 +47,8 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
         if (variable == null) {
           throw Exception('Undefined variable: $name');
         }
-        return IdentifierExpr2(name, variable.type);
+        final usedName = variable.pythonName ?? name;
+        return IdentifierExpr2(usedName, variable.type);
       }(),
     OperatorExpr1(:final left, :final operator, :final right) => () {
         final left2 = typeCheckExpr(left, context);
@@ -173,7 +174,17 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
           _ => VoidType(),
         };
         return BlockExpr2(lines2, returnType);
-      }()
+      }(),
+    ArrayExpr1(:final elements) => () {
+        final elements2 =
+            elements.map((element) => typeCheckExpr(element, context)).toList();
+        var elementType = elements2.firstOrNull?.type ?? AnyType();
+        if (elements2
+            .any((element) => !element.type.isAssignableTo(elementType))) {
+          elementType = AnyType();
+        }
+        return ArrayExpr2(elements2, ArrayType(elementType, elements2.length));
+      }(),
   };
   return returnType;
 }

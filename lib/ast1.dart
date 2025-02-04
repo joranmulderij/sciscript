@@ -90,6 +90,15 @@ class BlockExpr1 extends Expr1 {
   String toString() => 'BlockExpr1($lines)';
 }
 
+class ArrayExpr1 extends Expr1 {
+  final List<Expr1> elements;
+
+  ArrayExpr1(this.elements);
+
+  @override
+  String toString() => 'ArrayExpr1($elements)';
+}
+
 class OperatorExpr1 extends Expr1 {
   final Operator1 operator;
   final Expr1 left;
