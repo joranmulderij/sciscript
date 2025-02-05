@@ -73,12 +73,12 @@ class IdentifierExpr1 extends Expr1 {
 
 class FunctionCallExpr1 extends Expr1 {
   final Expr1 function;
-  final Expr1 argument;
+  final List<Expr1> arguments;
 
-  FunctionCallExpr1(this.function, this.argument);
+  FunctionCallExpr1(this.function, this.arguments);
 
   @override
-  String toString() => 'FunctionCallExpr1($function, $argument)';
+  String toString() => 'FunctionCallExpr1($function, $arguments)';
 }
 
 class BlockExpr1 extends Expr1 {

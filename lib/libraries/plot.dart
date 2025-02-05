@@ -6,9 +6,15 @@ final plotLibrary = Library(
   name: 'plot',
   scope: {
     'plot': Variable(
-      FunctionType(VoidType(), AnyType()),
+      FunctionType(
+          VoidType(), [ArrayType(NumberType()), ArrayType(NumberType())]),
       VariableMutability.constant,
       pythonName: 'plt.plot',
+    ),
+    'show': Variable(
+      FunctionType(VoidType(), []),
+      VariableMutability.constant,
+      pythonName: 'plt.show',
     ),
   },
   pythonDependencies: ['matplotlib'],

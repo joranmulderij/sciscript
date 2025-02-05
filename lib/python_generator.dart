@@ -55,16 +55,14 @@ String generateCFromExpr(
       }(),
     FunctionCallExpr2(
       :final function,
-      :final argument,
+      :final arguments,
     ) =>
       () {
-        // final functionType = function.type;
-        // if (functionType is CustomFunctionType) {
-        //   return '${functionType.customFunction}($argument)';
-        // }
         final functionName = generateCFromExpr(function, helper, injectScope);
-        final argumentValue = generateCFromExpr(argument, helper, injectScope);
-        return '$functionName($argumentValue)';
+        final argumentValues = arguments
+            .map((argument) => generateCFromExpr(argument, helper, injectScope))
+            .join(', ');
+        return '$functionName($argumentValues)';
       }(),
     BlockExpr2(:final lines) => () {
         for (var i = 0; i < lines.length; i++) {
@@ -96,10 +94,12 @@ String _generatePythonFromType(MyType type) {
   final cCode = switch (type) {
     NumberType() => 'num',
     VoidType() => 'NoneType',
-    FunctionType(:final returnType, :final argumentType) => () {
+    FunctionType(:final returnType, :final argumentTypes) => () {
         final returnTypeCode = _generatePythonFromType(returnType);
-        final argumentTypeCode = _generatePythonFromType(argumentType);
-        return 'Callable[[$argumentTypeCode], $returnTypeCode]';
+        final argumentTypeCodes = argumentTypes
+            .map((argumentType) => _generatePythonFromType(argumentType))
+            .join(', ');
+        return 'Callable[[$argumentTypeCodes], $returnTypeCode]';
       }(),
     ArrayType() => 'np.ndarray',
     AnyType() => throw UnsupportedError('AnyType not supported'),

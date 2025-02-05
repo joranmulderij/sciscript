@@ -75,17 +75,26 @@ class ExpressionDefinition extends GrammarDefinition {
     });
 
     // char('@').not() is a workaround. Its a parser that matches nothing.
-    builder.group().left(char('@').not(), (left, op, right) {
-      return FunctionCallExpr1(left, right);
-    });
+    builder.group()
+      ..left(char('@').not(), (left, op, right) {
+        return FunctionCallExpr1(left, [right]);
+      })
+      ..postfix(
+          ref0(openingParenthesis) &
+              ref0(expr).starSeparated(ref0(comma)) &
+              ref0(closingParenthesis), (expr, args) {
+        return FunctionCallExpr1(
+            expr, (args[1] as SeparatedList<Expr1, void>).elements);
+      });
 
     return builder.build();
   }
 
-  Parser<NumberExpr1> numberExpr() => digit()
-      .plusString()
-      .map((value) => NumberExpr1(num.parse(value)))
-      .myTrim();
+  Parser<NumberExpr1> numberExpr() =>
+      (digit().plusString() & char('.').optional() & digit().starString())
+          .flatten()
+          .map((value) => NumberExpr1(num.parse(value)))
+          .myTrim();
   Parser<IdentifierExpr1> identifierExpr() =>
       ref0(identifier).map((value) => IdentifierExpr1(value));
   Parser<BlockExpr1> blockExpr() =>

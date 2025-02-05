@@ -6,7 +6,7 @@ final stdLib = Library(
   name: 'stdlib',
   scope: {
     'print': Variable(
-      FunctionType(VoidType(), AnyType()),
+      FunctionType(VoidType(), [AnyType()]),
       VariableMutability.constant,
       pythonName: 'myprint',
     ),

@@ -136,26 +136,36 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
         };
         return expr2;
       }(),
-    FunctionCallExpr1(:final function, :final argument) => () {
+    FunctionCallExpr1(:final function, :final arguments) => () {
         final function2 = typeCheckExpr(function, context);
         final functionType = function2.type;
-        final argument2 = typeCheckExpr(argument, context);
+        final argumentExprs2 = arguments
+            .map((argument) => typeCheckExpr(argument, context))
+            .toList();
         final expr2 = switch (functionType) {
-          FunctionType(:final argumentType, :final returnType) => () {
-              if (!argument2.type.isAssignableTo(argumentType)) {
-                throw Exception('Argument type mismatch');
+          FunctionType(:final argumentTypes, :final returnType) => () {
+              for (var i = 0; i < argumentExprs2.length; i++) {
+                final argumentExpr2 = argumentExprs2[i];
+                final argumentType = argumentTypes[i];
+                if (!argumentExpr2.type.isAssignableTo(argumentType)) {
+                  throw Exception('Argument type mismatch');
+                }
               }
               return FunctionCallExpr2(
                 function2,
-                argument2,
+                argumentExprs2,
                 returnType,
               );
             }(),
           NumberType() => () {
-              if (argument2.type is! NumberType) {
+              if (argumentExprs2.length != 1) {
                 throw Exception('Function call type mismatch');
               }
-              final newExpr = OperatorExpr1(Operator1.star, function, argument);
+              if (argumentExprs2[0].type is! NumberType) {
+                throw Exception('Function call type mismatch');
+              }
+              final newExpr =
+                  OperatorExpr1(Operator1.star, function, arguments[0]);
               return typeCheckExpr(newExpr, context);
             }(),
           _ => throw Exception('Function call type mismatch: $functionType'),
@@ -179,8 +189,8 @@ Expr2 typeCheckExpr(Expr1 expr, Context context) {
         final elements2 =
             elements.map((element) => typeCheckExpr(element, context)).toList();
         var elementType = elements2.firstOrNull?.type ?? AnyType();
-        if (elements2
-            .any((element) => !element.type.isAssignableTo(elementType))) {
+        if (elements2.any((element) =>
+            !element.type.isAssignableTo(elementType, ignoreConstant: true))) {
           elementType = AnyType();
         }
         return ArrayExpr2(elements2, ArrayType(elementType, elements2.length));

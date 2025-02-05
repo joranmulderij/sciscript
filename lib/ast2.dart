@@ -26,13 +26,13 @@ sealed class Expr2 {
 
 class FunctionCallExpr2 extends Expr2 {
   final Expr2 function;
-  final Expr2 argument;
+  final List<Expr2> arguments;
 
-  const FunctionCallExpr2(this.function, this.argument, super.type);
+  const FunctionCallExpr2(this.function, this.arguments, super.type);
 }
 
 class NumberExpr2 extends Expr2 {
-  final double value;
+  final num value;
 
   NumberExpr2(this.value, super.type);
 }
